@@ -1,0 +1,18 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc = "0.8.20"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+
+[rpc_endpoints]
+tenderly = "${TENDERLY_RPC_URL}"
+
+[etherscan]
+tenderly = { key = "${TENDERLY_ACCESS_KEY}", url = "https://api.tenderly.co/api/v1/account/${TENDERLY_ACCOUNT_SLUG}/project/${TENDERLY_PROJECT_SLUG}/etherscan/verify/ethers" }
+
+[fmt]
+line_length = 100
+tab_width = 4

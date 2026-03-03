@@ -1,0 +1,24 @@
+{
+    "name": "claimshield",
+    "version": "1.0.0",
+    "description": "ClaimShield — privacy-preserving medical insurance claims processor using Chainlink CRE",
+    "main": "workflow/main.ts",
+    "scripts": {
+        "simulate": "cre workflow simulate ./workflow --target=staging-settings",
+        "enclave": "ts-node scripts/run-enclave.ts",
+        "submit": "ts-node scripts/submit-claim.ts",
+        "verdict": "ts-node scripts/check-verdict.ts"
+    },
+    "dependencies": {
+        "@chainlink/cre-sdk": "latest",
+        "ethers": "^6.13.0",
+        "zod": "^3.22.4"
+    },
+    "devDependencies": {
+        "@types/dotenv": "^6.1.1",
+        "@types/node": "^20.0.0",
+        "dotenv": "^17.3.1",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.4.5"
+    }
+}
