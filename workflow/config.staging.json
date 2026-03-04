@@ -1,0 +1,9 @@
+{
+    "fhirBaseUrl": "https://hapi.fhir.org/baseR4",
+    "enclaveSharedSecret": "0xf2eb356e687a4ab94222cdc11a4bfb9fb21686c150d4be4340b3d328fdda9932",
+    "policyRegistryAddress": "0x131d1dDf1AB7152Fea467216674cFBE6b840C19c",
+    "claimRequestAddress": "0x1d1A8979437EeFAa4176182d6B2BD0851D8Cb1Db",
+    "claimSettlementAddress": "0x0C838e465330d14E23bbc63E7028007C519017FA",
+    "claimSubmittedEventSignature": "ClaimSubmitted(bytes32,address,bytes32,uint256)",
+    "owner": "0x7FBbE68068A3Aa7E479A1E51e792F4C2073b018f"
+}

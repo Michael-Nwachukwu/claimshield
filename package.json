@@ -5,9 +5,9 @@
     "main": "workflow/main.ts",
     "scripts": {
         "simulate": "cre workflow simulate ./workflow --target=staging-settings",
-        "enclave": "ts-node scripts/run-enclave.ts",
-        "submit": "ts-node scripts/submit-claim.ts",
-        "verdict": "ts-node scripts/check-verdict.ts"
+        "enclave": "bun scripts/run-enclave.ts",
+        "submit": "bun scripts/submit-claim.ts",
+        "verdict": "bun scripts/check-verdict.ts"
     },
     "dependencies": {
         "@chainlink/cre-sdk": "latest",
@@ -15,10 +15,7 @@
         "zod": "^3.22.4"
     },
     "devDependencies": {
-        "@types/dotenv": "^6.1.1",
         "@types/node": "^20.0.0",
-        "dotenv": "^17.3.1",
-        "ts-node": "^10.9.2",
         "typescript": "^5.4.5"
     }
 }

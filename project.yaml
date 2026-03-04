@@ -1,0 +1,18 @@
+# ==========================================================================
+# CRE PROJECT SETTINGS FILE — ClaimShield
+# ==========================================================================
+# Copy the contract addresses from Deploy.s.sol output into this file.
+
+staging-settings:
+  account:
+    workflow-owner-address: ""   # Fill: your deployer wallet address
+  rpcs:
+    - chainId: 1                 # Tenderly Virtual Testnet forks mainnet (chain 1)
+      url: ""                    # Fill: TENDERLY_RPC_URL from .env
+
+production-settings:
+  account:
+    workflow-owner-address: ""   # Fill: production owner wallet / multisig
+  rpcs:
+    - chainId: 1
+      url: ""                    # Fill: mainnet RPC URL
