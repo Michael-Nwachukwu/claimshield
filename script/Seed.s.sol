@@ -1,0 +1,71 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "forge-std/Script.sol";
+import "../src/PolicyRegistry.sol";
+import "../src/ClaimSettlement.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+/// @notice Seeds demo data on Tenderly Virtual Testnet.
+///         Registers policy DEMO-001 and funds the settlement pool.
+///
+/// Prerequisites:
+///   1. Run Deploy.s.sol first and populate POLICY_REGISTRY_ADDRESS + CLAIM_SETTLEMENT_ADDRESS in .env
+///   2. Use Tenderly dashboard "Fund Account" to give the deployer wallet USDC
+///      (at 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 — Base USDC)
+///
+/// Usage:
+///   forge script script/Seed.s.sol --rpc-url $TENDERLY_RPC_URL --broadcast -vvv
+contract Seed is Script {
+    address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+
+    function run() external {
+        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        address registryAddr = vm.envAddress("POLICY_REGISTRY_ADDRESS");
+        address settlementAddr = vm.envAddress("CLAIM_SETTLEMENT_ADDRESS");
+        address enclaveWallet = vm.envAddress("ENCLAVE_WALLET_ADDRESS");
+
+        vm.startBroadcast(deployerKey);
+
+        PolicyRegistry registry = PolicyRegistry(registryAddr);
+        ClaimSettlement settlement = ClaimSettlement(settlementAddr);
+        IERC20 usdc = IERC20(USDC);
+
+        // Policy DEMO-001
+        // Coverage period: all of 2024 — covers our FHIR claim date of 2024-06-10
+        bytes32 policyId = keccak256(abi.encodePacked("DEMO-001"));
+
+        registry.registerPolicy(
+            policyId,
+            1704067200, // 2024-01-01 00:00:00 UTC (unix)
+            1735689600, // 2024-12-31 00:00:00 UTC (unix)
+            500_000000, // $500.00 max payout (USDC 6 decimals)
+            enclaveWallet
+        );
+
+        // Pay 0.01 ETH premium to activate the policy
+        registry.payPremium{value: 0.01 ether}(policyId);
+
+        // Fund settlement pool with $10,000 USDC (deployer must have USDC from Tenderly "Fund Account")
+        uint256 poolAmount = 10_000_000000; // $10,000 in 6-decimal USDC
+        usdc.approve(settlementAddr, poolAmount);
+        settlement.depositLiquidity(poolAmount);
+
+        vm.stopBroadcast();
+
+        console.log("=======================================================");
+        console.log("  SEED COMPLETE");
+        console.log("=======================================================");
+        console.log("  Policy ID (bytes32):", vm.toString(policyId));
+        console.log("  Policy string      : DEMO-001");
+        console.log("  Coverage           : 2024-01-01 to 2024-12-31");
+        console.log("  Max payout         : $500.00 USDC");
+        console.log("  Approved enclave   :", enclaveWallet);
+        console.log("  Pool funded        : $10,000 USDC");
+        console.log("=======================================================");
+        console.log("  FHIR Claim ID      : 131299879");
+        console.log("  Expected ICD-10    : J06.9 (covered)");
+        console.log("  Expected payout    : $120.00 USDC (80% of $150)");
+        console.log("=======================================================");
+    }
+}
