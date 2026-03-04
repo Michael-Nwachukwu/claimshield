@@ -71,9 +71,16 @@ export async function processClaim(payload: ClaimPayload): Promise<void> {
     console.log('[ENCLAVE] Step 1: Checking policy status onchain...')
     const policy = await registry.getPolicy(policyIdBytes)
 
+    // Policy doesn't exist — owner will be address(0). Can't write any verdict.
+    if (policy.owner === ethers.ZeroAddress) {
+        console.log('[ENCLAVE] ✗ Policy does not exist — not registered onchain')
+        return
+    }
+
     if (!policy.active || !policy.premiumPaid) {
+        // Contract requires active=true to record a verdict, so we can't write here.
         console.log('[ENCLAVE] ✗ Policy not active or premium not paid')
-        return writeVerdict(registry, settlement, policyIdBytes, payload.wallet, 'denied', 0, ReasonCode.POLICY_INACTIVE)
+        return
     }
 
     if (policy.owner.toLowerCase() !== payload.wallet.toLowerCase()) {
@@ -83,8 +90,10 @@ export async function processClaim(payload: ClaimPayload): Promise<void> {
 
     const alreadyProcessed = await registry.claimProcessed(policyIdBytes)
     if (alreadyProcessed) {
-        console.log('[ENCLAVE] ✗ Claim already processed (duplicate prevention)')
-        return writeVerdict(registry, settlement, policyIdBytes, payload.wallet, 'denied', 0, ReasonCode.DUPLICATE)
+        // Verdict already recorded onchain — contract will reject any attempt to write again.
+        // Just return; the existing verdict is readable via getVerdict().
+        console.log('[ENCLAVE] ✗ Claim already processed — verdict already onchain, skipping.')
+        return
     }
 
     console.log('[ENCLAVE] ✓ Policy active, premium paid, no duplicate')

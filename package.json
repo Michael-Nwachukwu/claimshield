@@ -8,6 +8,7 @@
         "enclave": "bun scripts/run-enclave.ts",
         "submit": "bun scripts/submit-claim.ts",
         "verdict": "bun scripts/check-verdict.ts",
+        "setup": "bun scripts/setup-policies.ts",
         "demo": "bun scripts/demo.ts"
     },
     "dependencies": {
