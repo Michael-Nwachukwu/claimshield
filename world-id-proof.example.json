@@ -1,0 +1,14 @@
+{
+    "_comment": "This is an EXAMPLE. Copy the real proof from the World ID Simulator.",
+    "_instructions": [
+        "1. Go to https://developer.worldcoin.org/ and open your app (Staging env)",
+        "2. Open the Simulator at https://simulator.worldcoin.org/",
+        "3. Follow the flow and click Approve",
+        "4. Copy ONLY the fields below (merkle_root, nullifier_hash, proof, verification_level)",
+        "5. Paste them into claimshield/world-id-proof.json (without the _comment field)"
+    ],
+    "merkle_root": "0x2264a66d162d7893e12ea8e3c072c51e785bc085ad655f64c10c1a61e00f0bc2",
+    "nullifier_hash": "0x2bf8406809dcefb1486dadc96c0a897db9bab002053054cf64272db512c6fbd8",
+    "proof": "0x1aa8b8f3b2d2de5ff452c0e1a83e29d6bf46fb83ef35dc5957121ff3d3698a1119090fb048726896178a34c9bf33cbce936b32cc0a3b9b8e39d6a45c25e013c012a4f5fda3f67afe1a02b5f4067b19eb56c5a9e3c82a2c5e76eaa49fe1a1aef8f286cd88f9fdb06dc82b27eb15b4cb7f8e938e1f30eee9f4ef59d6d28cfecc0a63d23f20a4ed680d7d5b7e1bc48e99d88a4a7d8b7c5e72db8e1f620e16dca7bd12c948e8f2de46ab5f86dfc0c67f1a9f43b3217a5e2ae6b91d3042fa85bd4f09b",
+    "verification_level": "orb"
+}

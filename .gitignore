@@ -8,3 +8,6 @@ deployments/*.json
 workflow/tmp.js
 workflow/tmp.wasm
 *.log
+
+# World ID proof file — contains staging ZKPs, never commit
+world-id-proof.json

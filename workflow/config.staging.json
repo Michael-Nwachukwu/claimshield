@@ -1,9 +1,11 @@
 {
     "fhirBaseUrl": "https://hapi.fhir.org/baseR4",
     "enclaveSharedSecret": "0xf2eb356e687a4ab94222cdc11a4bfb9fb21686c150d4be4340b3d328fdda9932",
-    "policyRegistryAddress": "0x131d1dDf1AB7152Fea467216674cFBE6b840C19c",
-    "claimRequestAddress": "0x1d1A8979437EeFAa4176182d6B2BD0851D8Cb1Db",
-    "claimSettlementAddress": "0x0C838e465330d14E23bbc63E7028007C519017FA",
-    "claimSubmittedEventSignature": "ClaimSubmitted(bytes32,address,bytes32,uint256)",
+    "policyRegistryAddress": "0x8998151A1EE905EFd20189a89A6910c4a0d2DeCb",
+    "claimRequestAddress": "0x56d522a352204a827100E0b3440621395a703c2B",
+    "claimSettlementAddress": "0xDbe7F4351BE37985849ec452E1f4e3FfE6b8bC88",
+    "claimSubmittedEventSignature": "ClaimSubmitted(bytes32,address,bytes,uint256)",
+    "worldIdAppId": "app_d2d6e31b837c0b48bd8d9093f3b8f300",
+    "worldIdAction": "submit-claim",
     "owner": "0x7FBbE68068A3Aa7E479A1E51e792F4C2073b018f"
 }

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>ClaimShield — World ID Proof Generator</title>
+  <!-- React UMD + Babel for in-browser JSX -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- IDKit UMD bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/@worldcoin/idkit@1.1.9/build/index.umd.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      background: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 20px;
+    }
+
+    .card {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 540px;
+      width: 100%;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    h1 {
+      color: #f1f5f9;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      color: #94a3b8;
+      margin-top: 6px;
+      font-size: 15px;
+    }
+
+    .meta {
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 20px 0;
+      font-family: monospace;
+      font-size: 13px;
+      color: #64748b;
+      word-break: break-all;
+    }
+
+    .btn {
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 28px;
+      font-size: 16px;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.2s;
+    }
+
+    .btn:hover {
+      background: #2563eb;
+    }
+
+    .btn-copy {
+      background: #16a34a;
+      margin-top: 12px;
+    }
+
+    .btn-copy:hover {
+      background: #15803d;
+    }
+
+    .success {
+      color: #4ade80;
+      font-weight: 700;
+      margin-bottom: 8px;
+      font-size: 18px;
+    }
+
+    .hint {
+      color: #94a3b8;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+
+    pre {
+      background: #0f172a;
+      color: #86efac;
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 12px;
+      overflow: auto;
+      max-height: 260px;
+      text-align: left;
+    }
+
+    .step {
+      color: #64748b;
+      font-size: 12px;
+      margin-top: 20px;
+      line-height: 1.8;
+    }
+
+    .step strong {
+      color: #94a3b8;
+    }
+
+    #error {
+      color: #f87171;
+      font-size: 13px;
+      margin-top: 12px;
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { IDKitWidget, VerificationLevel } = IDKit
+
+    // Parse app_id and action from URL hash: #APP_ID|ACTION
+    const hash = window.location.hash.slice(1)
+    const [APP_ID, ACTION] = hash.includes('|') ? hash.split('|') : [hash, 'submit-claim']
+
+    function App() {
+      const [proof, setProof] = React.useState(null)
+      const [copied, setCopied] = React.useState(false)
+      const [err, setErr] = React.useState(null)
+
+      if (!APP_ID || APP_ID === 'YOUR_APP_ID') {
+        return (
+          <div className="card">
+            <h1>🛡️ ClaimShield</h1>
+            <p className="subtitle">World ID Proof Generator</p>
+            <div className="meta">
+              ⚠️ No App ID detected in URL.<br /><br />
+              Open this page as:<br />
+              <strong style={{ color: '#f1f5f9' }}>
+                http://localhost:3456/world-id-generator.html#YOUR_APP_ID|submit-claim
+              </strong><br /><br />
+              Replace YOUR_APP_ID with the app_id from your World ID Developer Portal.
+            </div>
+          </div>
+        )
+      }
+
+      const handleSuccess = (result) => {
+        setProof({
+          merkle_root: result.merkle_root,
+          nullifier_hash: result.nullifier_hash,
+          proof: result.proof,
+          verification_level: result.verification_level,
+        })
+      }
+
+      const handleError = (e) => {
+        setErr(String(e?.message || e || 'Unknown error'))
+      }
+
+      const copy = () => {
+        navigator.clipboard.writeText(JSON.stringify(proof, null, 2)).then(() => {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 2500)
+        })
+      }
+
+      return (
+        <div className="card">
+          <h1>🛡️ ClaimShield</h1>
+          <p className="subtitle">World ID Proof Generator</p>
+          <div className="meta">
+            App ID: {APP_ID}<br />
+            Action: {ACTION}
+          </div>
+
+          {!proof ? (
+            <>
+              <IDKitWidget
+                app_id={APP_ID}
+                action={ACTION}
+                verification_level={VerificationLevel.Device}
+                onSuccess={handleSuccess}
+                onError={handleError}
+              >
+                {({ open }) => (
+                  <button className="btn" onClick={open}>
+                    Verify with World ID Simulator
+                  </button>
+                )}
+              </IDKitWidget>
+              {err && <div id="error" style={{ display: 'block', color: '#f87171', marginTop: 12, fontSize: 13 }}>Error: {err}</div>}
+              <div className="step">
+                <strong>How to use:</strong><br />
+                1. Click the button above → IDKit modal opens with a QR code<br />
+                2. Open <strong><a href="https://simulator.worldcoin.org" target="_blank" style={{ color: '#60a5fa' }}>simulator.worldcoin.org</a></strong> → Scanner → scan QR code<br />
+                3. Click Approve in the Simulator<br />
+                4. Proof JSON will appear here → Copy it → save as <code style={{ color: '#86efac' }}>world-id-proof.json</code>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="success">✅ Proof Generated!</p>
+              <p className="hint">
+                Copy this JSON and save it to <code style={{ color: '#86efac' }}>claimshield/world-id-proof.json</code>
+              </p>
+              <pre>{JSON.stringify(proof, null, 2)}</pre>
+              <button className="btn btn-copy" onClick={copy}>
+                {copied ? '✅ Copied to clipboard!' : '📋 Copy JSON'}
+              </button>
+            </>
+          )}
+        </div>
+      )
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'))
+    root.render(<App />)
+  </script>
+</body>
+
+</html>

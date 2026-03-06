@@ -13,7 +13,9 @@
 
 import { ethers } from 'ethers'
 import * as readline from 'readline'
-import { encryptFhirId, decryptFhirId } from '../enclave/crypto'
+import fs from 'fs'
+import path from 'path'
+import { encryptPayload, decryptPayload } from '../enclave/crypto'
 import { processClaim } from '../enclave/processor'
 
 // ─── ANSI Colors ──────────────────────────────────────────────────────────────
@@ -66,8 +68,8 @@ const POLICY_REGISTRY_ABI = [
 ]
 
 const CLAIM_REQUEST_ABI = [
-    'function submitClaim(bytes32 policyId, bytes32 encryptedPayload) external',
-    'event ClaimSubmitted(bytes32 indexed policyId, address indexed claimant, bytes32 encryptedPayload, uint256 timestamp)',
+    'function submitClaim(bytes32 policyId, bytes calldata encryptedPayload) external',
+    'event ClaimSubmitted(bytes32 indexed policyId, address indexed claimant, bytes encryptedPayload, uint256 timestamp)',
 ]
 
 const REASON_CODE_LABELS: Record<number, string> = {
@@ -192,13 +194,33 @@ async function main() {
     // ═══════════════════════════════════════════════════════════════════════════
     await pause(`\n  ${dim('Press Enter to continue to')} ${bold('Phase 2 — Submit Claim')}${dim('...')}`)
     header('PHASE 2  |  Submit Claim Onchain')
-    console.log(`  ${dim('Encrypting FHIR ID and broadcasting transaction...')}`)
+    console.log(`  ${dim('Reading World ID proof and building encrypted bundle...')}`)
 
-    const encryptedPayload = encryptFhirId(fhirClaimId, sharedSecret)
+    // Read World ID proof from file — verification happens in the enclave (TEE)
+    const proofPath = path.resolve(process.cwd(), 'world-id-proof.json')
+    if (!fs.existsSync(proofPath)) {
+        console.log(`  ${red('✗ world-id-proof.json not found.')}`)
+        console.log(`  ${dim('Generate a proof using the worldid-gen app, then save to:')} ${cyan('claimshield/world-id-proof.json')}`)
+        rl.close(); process.exit(1)
+    }
+    const worldIdProof = JSON.parse(fs.readFileSync(proofPath, 'utf-8'))
+    console.log(`  ${green('✓')} World ID proof loaded — nullifier: ${dim(worldIdProof.nullifier_hash)}`)
+    console.log(`  ${dim('Verification moves into the TEE enclave — not performed client-side.')}`)
+
+    // Bundle FHIR ID + World ID proof into a single encrypted JSON payload
+    const bundle = JSON.stringify({
+        fhirId: fhirClaimId,
+        nullifier_hash: worldIdProof.nullifier_hash,
+        merkle_root: worldIdProof.merkle_root,
+        proof: worldIdProof.proof,
+        verification_level: worldIdProof.verification_level,
+    })
+    const encryptedPayload = encryptPayload(bundle, sharedSecret)
+    const payloadBytes = (encryptedPayload.length - 2) / 2
 
     console.log(`\n  ${gray('policyId (bytes32)')} ${dim(policyIdBytes)}`)
-    console.log(`  ${gray('Encrypted FHIR   ')} ${dim(encryptedPayload)}`)
-    console.log(`  ${dim('XOR-encrypted — only the enclave can decrypt with the shared secret.')}\n`)
+    console.log(`  ${gray('Payload size     ')} ${white(String(payloadBytes) + ' bytes')} ${dim('(FHIR ID + World ID proof, XOR-encrypted)')}`)
+    console.log(`  ${dim('Only the enclave can decrypt — shared secret managed by Vault DON in production.')}\n`)
 
     const claimRequest = new ethers.Contract(process.env.CLAIM_REQUEST_ADDRESS!, CLAIM_REQUEST_ABI, signer)
     const tx = await claimRequest.submitClaim(policyIdBytes, encryptedPayload)
@@ -212,9 +234,9 @@ async function main() {
     console.log(`\n  ${bold('What IS onchain:')}`)
     console.log(`    ${green('✅')} policyId           ${dim(policyIdBytes)}`)
     console.log(`    ${green('✅')} claimant           ${cyan(signer.address)}`)
-    console.log(`    ${green('✅')} encryptedPayload   ${dim(encryptedPayload)} ${dim('(ciphertext)')}`)
+    console.log(`    ${green('✅')} encryptedPayload   ${dim('[' + payloadBytes + '-byte ciphertext]')}`)
     console.log(`  ${bold('What is NOT onchain:')}`)
-    console.log(`    ${magenta('🔒')} FHIR Claim ID, ICD-10 code, diagnosis, treatment date, billed amount`)
+    console.log(`    ${magenta('🔒')} FHIR Claim ID, World ID proof, ICD-10 code, diagnosis, treatment date`)
 
     // Parse the ClaimSubmitted event from the receipt.
     // This simulates exactly what the CRE EVM Log Trigger delivers to the enclave.
@@ -250,11 +272,15 @@ async function main() {
     console.log(`  ${dim('Decrypting FHIR ID from the event\'s encryptedPayload...')}\n`)
 
     // Demonstrate the decryption — this is what workflow/main.ts does from log.data inside TEE
-    const decryptedFhirId = decryptFhirId(eventEncryptedPayload, sharedSecret)
-    console.log(`  ${gray('Encrypted payload ')} ${dim(eventEncryptedPayload)}`)
+    const decryptedBundle = JSON.parse(decryptPayload(eventEncryptedPayload, sharedSecret))
+    const decryptedFhirId = decryptedBundle.fhirId as string
     console.log(`  ${gray('Shared secret     ')} ${dim(sharedSecret.slice(0, 10) + '...')} ${gray('(Vault DON managed in production)')}`)
-    console.log(`  ${green('✓')} ${bold('Decrypted FHIR ID:')} ${yellow(decryptedFhirId)}\n`)
-    console.log(`  ${dim('In production CRE: workflow/main.ts decrypts inside the TEE — never logged externally.')}\n`)
+    console.log(`  ${green('✓')} ${bold('Decrypted bundle:')}`)
+    console.log(`    ${gray('FHIR Claim ID     ')} ${yellow(decryptedFhirId)}`)
+    console.log(`    ${gray('World ID nullifier')} ${dim(decryptedBundle.nullifier_hash)}`)
+    console.log(`    ${gray('Verification level')} ${dim(decryptedBundle.verification_level)}`)
+    console.log(`\n  ${dim('In production CRE: workflow/main.ts decrypts inside the TEE — never logged externally.')}`)
+    console.log(`  ${dim('The enclave will verify World ID via ConfidentialHTTPClient as Step 1.')}\n`)
 
     // Check if claim was already processed (e.g. demo run more than once on same testnet)
     const registryCheck = new ethers.Contract(process.env.POLICY_REGISTRY_ADDRESS!, POLICY_REGISTRY_ABI, provider)
@@ -325,6 +351,8 @@ async function main() {
     console.log(`    ${green('✅')} USDC transfer TXs visible in block explorer`)
 
     console.log(`\n  ${bold(magenta('── WHAT NEVER LEFT THE ENCLAVE (CRE TEE):'))}`)
+    console.log(`    ${magenta('🔒')} World ID nullifier     ${dim(decryptedBundle.nullifier_hash)} ${gray('← verified via ConfidentialHTTPClient')}`)
+    console.log(`    ${magenta('🔒')} World ID proof         ${dim('[ZKP — verified inside TEE, not client-side]')}`)
     console.log(`    ${magenta('🔒')} FHIR Claim ID         ${yellow(decryptedFhirId)} ${gray('← decrypted inside TEE, never logged')}`)
     console.log(`    ${magenta('🔒')} ICD-10 Diagnosis Code  ${dim('(evaluated inside TEE)')}`)
     console.log(`    ${magenta('🔒')} Diagnosis Text         ${dim('(evaluated inside TEE)')}`)
