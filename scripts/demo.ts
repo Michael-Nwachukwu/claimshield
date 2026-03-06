@@ -19,27 +19,27 @@ import { processClaim } from '../enclave/processor'
 // ─── ANSI Colors ──────────────────────────────────────────────────────────────
 
 const C = {
-    reset:   '\x1b[0m',
-    bold:    '\x1b[1m',
-    dim:     '\x1b[2m',
-    cyan:    '\x1b[36m',
-    green:   '\x1b[32m',
-    yellow:  '\x1b[33m',
-    red:     '\x1b[31m',
+    reset: '\x1b[0m',
+    bold: '\x1b[1m',
+    dim: '\x1b[2m',
+    cyan: '\x1b[36m',
+    green: '\x1b[32m',
+    yellow: '\x1b[33m',
+    red: '\x1b[31m',
     magenta: '\x1b[35m',
-    gray:    '\x1b[90m',
-    white:   '\x1b[97m',
+    gray: '\x1b[90m',
+    white: '\x1b[97m',
 }
 
-const bold    = (s: string) => `${C.bold}${s}${C.reset}`
-const cyan    = (s: string) => `${C.cyan}${s}${C.reset}`
-const white   = (s: string) => `${C.white}${s}${C.reset}`
-const green   = (s: string) => `${C.green}${s}${C.reset}`
-const yellow  = (s: string) => `${C.yellow}${s}${C.reset}`
-const red     = (s: string) => `${C.red}${s}${C.reset}`
+const bold = (s: string) => `${C.bold}${s}${C.reset}`
+const cyan = (s: string) => `${C.cyan}${s}${C.reset}`
+const white = (s: string) => `${C.white}${s}${C.reset}`
+const green = (s: string) => `${C.green}${s}${C.reset}`
+const yellow = (s: string) => `${C.yellow}${s}${C.reset}`
+const red = (s: string) => `${C.red}${s}${C.reset}`
 const magenta = (s: string) => `${C.magenta}${s}${C.reset}`
-const gray    = (s: string) => `${C.gray}${s}${C.reset}`
-const dim     = (s: string) => `${C.dim}${s}${C.reset}`
+const gray = (s: string) => `${C.gray}${s}${C.reset}`
+const dim = (s: string) => `${C.dim}${s}${C.reset}`
 
 function header(title: string) {
     const line = '━'.repeat(62)
@@ -97,7 +97,7 @@ function pause(message: string): Promise<void> {
 
 async function main() {
     const provider = new ethers.JsonRpcProvider(process.env.TENDERLY_RPC_URL!)
-    const signer   = new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY!, provider)
+    const signer = new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY!, provider)
     const sharedSecret = process.env.ENCLAVE_SHARED_SECRET!
 
     // ── Welcome ──────────────────────────────────────────────────────────────
@@ -114,12 +114,12 @@ async function main() {
     header('Enter Claim Details')
     console.log(`  ${dim('Press Enter to use defaults shown in brackets.')}\n`)
 
-    const policyRaw   = await ask(`  ${bold('Policy ID')} ${gray('[DEMO-001]')}: `)
+    const policyRaw = await ask(`  ${bold('Policy ID')} ${gray('[DEMO-001]')}: `)
     // Normalize: trim whitespace, uppercase, replace spaces/underscores with hyphens
     // e.g. "demo 003" → "DEMO-003", "DEMO_002" → "DEMO-002"
-    const policyId    = (policyRaw.trim() || 'DEMO-001').toUpperCase().replace(/[\s_]+/g, '-')
+    const policyId = (policyRaw.trim() || 'DEMO-001').toUpperCase().replace(/[\s_]+/g, '-')
 
-    const fhirRaw     = await ask(`  ${bold('FHIR Claim ID')} ${gray('[131299879]')}: `)
+    const fhirRaw = await ask(`  ${bold('FHIR Claim ID')} ${gray('[131299879]')}: `)
     const fhirClaimId = fhirRaw.trim() || '131299879'
 
     console.log(`\n  ${gray('Policy ID     ')} ${cyan(policyId)}`)
@@ -128,7 +128,7 @@ async function main() {
 
     // ── Pre-validate policy before spending any gas ───────────────────────────
     console.log(`\n  ${dim('Verifying policy onchain...')}`)
-    const policyIdBytes    = ethers.id(policyId)
+    const policyIdBytes = ethers.id(policyId)
     const preRegistry = new ethers.Contract(process.env.POLICY_REGISTRY_ADDRESS!, POLICY_REGISTRY_ABI, provider)
     const [prePolicy, preClaimed] = await Promise.all([
         preRegistry.getPolicy(policyIdBytes),
@@ -166,9 +166,9 @@ async function main() {
         const fhir = await resp.json() as Record<string, unknown>
 
         if (fhir.resourceType === 'Claim') {
-            const diag    = (fhir as any).diagnosis?.[0]?.diagnosisCodeableConcept?.coding?.[0]
+            const diag = (fhir as any).diagnosis?.[0]?.diagnosisCodeableConcept?.coding?.[0]
             const dateStr = (fhir as any).billablePeriod?.start
-            billedAmount  = (fhir as any).total?.value ?? 0
+            billedAmount = (fhir as any).total?.value ?? 0
             const expectedPayout = (billedAmount * 0.80).toFixed(2)
 
             console.log(`\n  ${gray('Resource Type  ')} ${white(String(fhir.resourceType))}`)
@@ -201,7 +201,7 @@ async function main() {
     console.log(`  ${dim('XOR-encrypted — only the enclave can decrypt with the shared secret.')}\n`)
 
     const claimRequest = new ethers.Contract(process.env.CLAIM_REQUEST_ADDRESS!, CLAIM_REQUEST_ABI, signer)
-    const tx      = await claimRequest.submitClaim(policyIdBytes, encryptedPayload)
+    const tx = await claimRequest.submitClaim(policyIdBytes, encryptedPayload)
     const receipt = await tx.wait()
 
     console.log(`  ${green('✓ Transaction confirmed')}`)
@@ -221,16 +221,16 @@ async function main() {
     console.log(`\n  ${dim('Parsing ClaimSubmitted event from receipt...')}`)
 
     const iface = new ethers.Interface(CLAIM_REQUEST_ABI)
-    let eventPolicyId         = policyIdBytes
-    let eventClaimant         = signer.address
+    let eventPolicyId = policyIdBytes
+    let eventClaimant = signer.address
     let eventEncryptedPayload = encryptedPayload
 
     for (const log of receipt.logs) {
         try {
             const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data })
             if (parsed?.name === 'ClaimSubmitted') {
-                eventPolicyId         = parsed.args[0]
-                eventClaimant         = parsed.args[1]
+                eventPolicyId = parsed.args[0]
+                eventClaimant = parsed.args[1]
                 eventEncryptedPayload = parsed.args[2]
                 break
             }
@@ -268,7 +268,7 @@ async function main() {
         // Run the full enclave: fetch FHIR, evaluate, write verdict, payout
         await processClaim({
             policy_id: policyId,
-            wallet:    eventClaimant,
+            wallet: eventClaimant,
             fhir_claim_id: decryptedFhirId,
         })
     }
@@ -286,11 +286,11 @@ async function main() {
     ])
 
     // getVerdict returns a single unnamed tuple — ethers.js v6 decodes it as the struct directly
-    const status        = verdictRaw.status        as string
-    const payoutAmount  = verdictRaw.payoutAmount  as bigint
-    const reasonCode    = verdictRaw.reasonCode    as number
+    const status = verdictRaw.status as string
+    const payoutAmount = verdictRaw.payoutAmount as bigint
+    const reasonCode = verdictRaw.reasonCode as number
     const complianceHash = verdictRaw.complianceHash as string
-    const timestamp     = verdictRaw.timestamp     as bigint
+    const timestamp = verdictRaw.timestamp as bigint
 
     // Guard: if timestamp is 0, no verdict was written (enclave returned early unexpectedly)
     if (timestamp === 0n) {
@@ -302,10 +302,10 @@ async function main() {
     }
 
     const statusLabel = status === 'approved' ? green(bold('✅ APPROVED'))
-                      : status === 'denied'   ? red(bold('❌ DENIED'))
-                      : yellow(bold('⚠️  ESCALATED'))
+        : status === 'denied' ? red(bold('❌ DENIED'))
+            : yellow(bold('⚠️  ESCALATED'))
     const payout = (Number(payoutAmount) / 1_000_000).toFixed(2)
-    const ts     = new Date(Number(timestamp) * 1000).toUTCString()
+    const ts = new Date(Number(timestamp) * 1000).toUTCString()
 
     console.log(`\n  ${gray('Status          ')} ${statusLabel}`)
     console.log(`  ${gray('Payout          ')} ${green(bold('$' + payout + ' USDC'))}`)
