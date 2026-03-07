@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClaimShield — System Flowchart</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #050a14;
+            --panel: #0d1627;
+            --border: #1e2d4a;
+            --blue: #3b82f6;
+            --blue-d: #1d4ed8;
+            --cyan: #22d3ee;
+            --green: #22c55e;
+            --purple: #a855f7;
+            --orange: #f97316;
+            --yellow: #eab308;
+            --red: #ef4444;
+            --teal: #14b8a6;
+            --text: #e2e8f0;
+            --muted: #64748b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── Header ── */
+        .header {
+            text-align: center;
+            padding: 48px 24px 32px;
+            position: relative;
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--blue), transparent);
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(59, 130, 246, .15);
+            border: 1px solid rgba(59, 130, 246, .4);
+            border-radius: 999px;
+            padding: 4px 16px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            color: var(--cyan);
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: clamp(24px, 4vw, 40px);
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, var(--cyan) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        /* ── Layout ── */
+        .canvas {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            align-items: center;
+        }
+
+        /* ── Lane labels ── */
+        .lanes {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+
+        .lane-label {
+            text-align: center;
+            font-size: 10px;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            font-weight: 600;
+            padding: 6px 0;
+            border-radius: 4px;
+        }
+
+        .lane-user {
+            color: var(--blue);
+            background: rgba(59, 130, 246, .08);
+            border: 1px solid rgba(59, 130, 246, .2);
+        }
+
+        .lane-chain {
+            color: var(--orange);
+            background: rgba(249, 115, 22, .08);
+            border: 1px solid rgba(249, 115, 22, .2);
+        }
+
+        .lane-tee {
+            color: var(--purple);
+            background: rgba(168, 85, 247, .08);
+            border: 1px solid rgba(168, 85, 247, .2);
+        }
+
+        /* ── Flow section wrappers ── */
+        .flow {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+        }
+
+        /* ── Nodes ── */
+        .node {
+            border-radius: 12px;
+            padding: 14px 20px;
+            position: relative;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity .5s ease, transform .5s ease, box-shadow .3s ease;
+            cursor: default;
+            text-align: left;
+            width: 100%;
+        }
+
+        .node.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .node:hover {
+            transform: translateY(-2px) !important;
+        }
+
+        .node-title {
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .node-desc {
+            font-size: 11px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .node-tag {
+            position: absolute;
+            top: 10px;
+            right: 12px;
+            font-size: 9px;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            font-weight: 700;
+            opacity: .7;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* colour variants */
+        .n-blue {
+            background: rgba(59, 130, 246, .1);
+            border: 1px solid rgba(59, 130, 246, .35);
+        }
+
+        .n-blue .node-title {
+            color: var(--blue);
+        }
+
+        .n-blue:hover {
+            box-shadow: 0 0 28px rgba(59, 130, 246, .2);
+        }
+
+        .n-cyan {
+            background: rgba(34, 211, 238, .1);
+            border: 1px solid rgba(34, 211, 238, .35);
+        }
+
+        .n-cyan .node-title {
+            color: var(--cyan);
+        }
+
+        .n-cyan:hover {
+            box-shadow: 0 0 28px rgba(34, 211, 238, .2);
+        }
+
+        .n-orange {
+            background: rgba(249, 115, 22, .1);
+            border: 1px solid rgba(249, 115, 22, .35);
+        }
+
+        .n-orange .node-title {
+            color: var(--orange);
+        }
+
+        .n-orange:hover {
+            box-shadow: 0 0 28px rgba(249, 115, 22, .2);
+        }
+
+        .n-purple {
+            background: rgba(168, 85, 247, .1);
+            border: 1px solid rgba(168, 85, 247, .35);
+        }
+
+        .n-purple .node-title {
+            color: var(--purple);
+        }
+
+        .n-purple:hover {
+            box-shadow: 0 0 28px rgba(168, 85, 247, .2);
+        }
+
+        .n-green {
+            background: rgba(34, 197, 94, .1);
+            border: 1px solid rgba(34, 197, 94, .35);
+        }
+
+        .n-green .node-title {
+            color: var(--green);
+        }
+
+        .n-green:hover {
+            box-shadow: 0 0 28px rgba(34, 197, 94, .2);
+        }
+
+        .n-teal {
+            background: rgba(20, 184, 166, .1);
+            border: 1px solid rgba(20, 184, 166, .35);
+        }
+
+        .n-teal .node-title {
+            color: var(--teal);
+        }
+
+        .n-teal:hover {
+            box-shadow: 0 0 28px rgba(20, 184, 166, .2);
+        }
+
+        .n-yellow {
+            background: rgba(234, 179, 8, .1);
+            border: 1px solid rgba(234, 179, 8, .35);
+        }
+
+        .n-yellow .node-title {
+            color: var(--yellow);
+        }
+
+        .n-yellow:hover {
+            box-shadow: 0 0 28px rgba(234, 179, 8, .2);
+        }
+
+        .n-red {
+            background: rgba(239, 68, 68, .1);
+            border: 1px solid rgba(239, 68, 68, .35);
+        }
+
+        .n-red .node-title {
+            color: var(--red);
+        }
+
+        .n-red:hover {
+            box-shadow: 0 0 28px rgba(239, 68, 68, .2);
+        }
+
+        /* ── Grid layouts for side-by-side nodes ── */
+        .row-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            width: 100%;
+        }
+
+        /* ── Arrows / connectors ── */
+        .arrow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+            padding: 6px 0;
+            opacity: 0;
+            transition: opacity .4s ease;
+        }
+
+        .arrow.visible {
+            opacity: 1;
+        }
+
+        .arrow-line {
+            width: 2px;
+            height: 28px;
+            background: linear-gradient(180deg, var(--border), var(--muted));
+        }
+
+        .arrow-head {
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 8px solid var(--muted);
+        }
+
+        .arrow-label {
+            font-size: 10px;
+            color: var(--muted);
+            font-family: 'JetBrains Mono', monospace;
+            white-space: nowrap;
+            margin-bottom: 2px;
+        }
+
+        /* coloured arrows */
+        .arr-blue .arrow-line {
+            background: linear-gradient(180deg, var(--blue), rgba(59, 130, 246, .3));
+        }
+
+        .arr-blue .arrow-head {
+            border-top-color: var(--blue);
+        }
+
+        .arr-orange .arrow-line {
+            background: linear-gradient(180deg, var(--orange), rgba(249, 115, 22, .3));
+        }
+
+        .arr-orange .arrow-head {
+            border-top-color: var(--orange);
+        }
+
+        .arr-purple .arrow-line {
+            background: linear-gradient(180deg, var(--purple), rgba(168, 85, 247, .3));
+        }
+
+        .arr-purple .arrow-head {
+            border-top-color: var(--purple);
+        }
+
+        .arr-green .arrow-line {
+            background: linear-gradient(180deg, var(--green), rgba(34, 197, 94, .3));
+        }
+
+        .arr-green .arrow-head {
+            border-top-color: var(--green);
+        }
+
+        .arr-cyan .arrow-line {
+            background: linear-gradient(180deg, var(--cyan), rgba(34, 211, 238, .3));
+        }
+
+        .arr-cyan .arrow-head {
+            border-top-color: var(--cyan);
+        }
+
+        /* ── Section dividers ── */
+        .section-divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            margin: 20px 0 12px;
+            opacity: 0;
+            transition: opacity .5s ease;
+        }
+
+        .section-divider.visible {
+            opacity: 1;
+        }
+
+        .divider-line {
+            flex: 1;
+            height: 1px;
+        }
+
+        .divider-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            white-space: nowrap;
+            padding: 4px 12px;
+            border-radius: 999px;
+        }
+
+        .div-orange {
+            --c: var(--orange);
+
+            .divider-line {
+                background: linear-gradient(90deg, transparent, var(--c), transparent);
+            }
+
+            .divider-label {
+                color: var(--c);
+                background: rgba(249, 115, 22, .12);
+                border: 1px solid rgba(249, 115, 22, .3);
+            }
+        }
+
+        .div-purple {
+            --c: var(--purple);
+
+            .divider-line {
+                background: linear-gradient(90deg, transparent, var(--c), transparent);
+            }
+
+            .divider-label {
+                color: var(--c);
+                background: rgba(168, 85, 247, .12);
+                border: 1px solid rgba(168, 85, 247, .3);
+            }
+        }
+
+        .div-green {
+            --c: var(--green);
+
+            .divider-line {
+                background: linear-gradient(90deg, transparent, var(--c), transparent);
+            }
+
+            .divider-label {
+                color: var(--c);
+                background: rgba(34, 197, 94, .12);
+                border: 1px solid rgba(34, 197, 94, .3);
+            }
+        }
+
+        /* ── TEE box ── */
+        .tee-box {
+            width: 100%;
+            border: 1px dashed rgba(168, 85, 247, .5);
+            border-radius: 16px;
+            padding: 20px;
+            background: rgba(168, 85, 247, .04);
+            position: relative;
+            opacity: 0;
+            transition: opacity .6s ease;
+        }
+
+        .tee-box.visible {
+            opacity: 1;
+        }
+
+        .tee-badge {
+            position: absolute;
+            top: -13px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg);
+            padding: 2px 16px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: var(--purple);
+            border: 1px dashed rgba(168, 85, 247, .5);
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+
+        .tee-inner {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* ── Outcome block ── */
+        .outcome-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            width: 100%;
+        }
+
+        /* ── Legend ── */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: center;
+            padding: 24px;
+            border-top: 1px solid var(--border);
+            margin-top: 20px;
+            width: 100%;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+        }
+
+        /* ── Lock badge ── */
+        .lock-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+
+        .lock-chip {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            background: rgba(168, 85, 247, .12);
+            border: 1px solid rgba(168, 85, 247, .25);
+            color: var(--purple);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        /* ── Pulse animation for TEE ── */
+        @keyframes tee-pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(168, 85, 247, .0);
+            }
+
+            50% {
+                box-shadow: 0 0 40px 8px rgba(168, 85, 247, .12);
+            }
+        }
+
+        .tee-box.visible {
+            animation: tee-pulse 3s ease-in-out infinite;
+        }
+
+        /* ── Real badge ── */
+        .real-badge {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 3px;
+            vertical-align: middle;
+            margin-left: 4px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .real {
+            background: rgba(34, 197, 94, .2);
+            color: var(--green);
+            border: 1px solid rgba(34, 197, 94, .4);
+        }
+
+        .sim {
+            background: rgba(234, 179, 8, .2);
+            color: var(--yellow);
+            border: 1px solid rgba(234, 179, 8, .4);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <div class="badge">System Architecture</div>
+        <h1>🛡️ ClaimShield — End-to-End Flow</h1>
+        <p class="subtitle">Privacy-Preserving Medical Claims · Chainlink CRE + World ID + FHIR</p>
+    </div>
+
+    <div class="canvas">
+
+        <!-- LANE LABELS -->
+        <div class="lanes">
+            <div class="lane-label lane-user">👤 User / Frontend</div>
+            <div class="lane-label lane-chain">⛓ Blockchain (Tenderly)</div>
+            <div class="lane-label lane-tee">🔒 Chainlink CRE / TEE</div>
+        </div>
+
+        <!-- ════════════════════════════════════════════ -->
+        <!-- PHASE 1: USER + PROOF GENERATION            -->
+        <!-- ════════════════════════════════════════════ -->
+
+        <div class="flow" id="phase1">
+
+            <div class="node n-blue" data-delay="0">
+                <div class="node-tag">START</div>
+                <div class="node-title">Claimant Needs Medical Reimbursement</div>
+                <div class="node-desc">User undergoes a medical procedure. They receive their <strong>Policy ID</strong>
+                    from the insurer and <strong>Claim ID</strong> from their hospital's FHIR (Fast Healthcare
+                    Interoperability Resources) system.</div>
+            </div>
+
+            <div class="arrow arr-blue" data-delay="100">
+                <div class="arrow-line"></div>
+                <div class="arrow-head"></div>
+            </div>
+
+            <div class="node n-cyan" data-delay="200">
+                <div class="node-tag">REAL ↗</div>
+                <div class="node-title">Claimant Confirms Humanhood via World ID</div>
+                <div class="node-desc">User opens the ClaimShield dApp and proves their unique human identity using the
+                    World App. Generates a secure zero-knowledge proof locally on their device.</div>
+            </div>
+
+            <div class="arrow arr-cyan" data-delay="300">
+                <div class="arrow-label">ZK Proof Ready</div>
+                <div class="arrow-line"></div>
+                <div class="arrow-head"></div>
+            </div>
+
+        </div><!-- /phase1 -->
+
+        <!-- ════════════════════════════════════════════ -->
+        <!-- PHASE 2: SUBMIT CLAIM ONCHAIN               -->
+        <!-- ════════════════════════════════════════════ -->
+        <div class="section-divider div-orange" data-delay="400">
+            <div class="divider-line"></div>
+            <div class="divider-label">Phase 2 — Submit Claim Onchain</div>
+            <div class="divider-line"></div>
+        </div>
+
+        <div class="flow" id="phase2">
+
+            <div class="node n-blue" data-delay="500">
+                <div class="node-title">ClaimShield dApp Bundles Claim Data</div>
+                <div class="node-desc">The dApp securely binds the <strong>FHIR Claim ID</strong> and the <strong>World
+                        ID ZK Proof</strong> into a payload. It encrypts this payload so it can't be read publicly.
+                </div>
+                <div class="lock-row">
+                    <span class="lock-chip">FHIR Claim ID</span>
+                    <span class="lock-chip">World ID Proof</span>
+                    <span class="lock-chip">→ Encrypted Bytes</span>
+                </div>
+            </div>
+
+            <div class="arrow arr-orange" data-delay="600">
+                <div class="arrow-label">Wallet signs submitClaim()</div>
+                <div class="arrow-line"></div>
+                <div class="arrow-head"></div>
+            </div>
+
+            <div class="node n-orange" data-delay="700">
+                <div class="node-title">Smart Contract Emits Claim Event <span class="real-badge real">Real TX</span>
+                </div>
+                <div class="node-desc">The blockchain records the claim submission event. The medical data is completely
+                    opaque and protected on-chain.</div>
+            </div>
+
+        </div><!-- /phase2 -->
+
+        <!-- ════════════════════════════════════════════ -->
+        <!-- PHASE 3: CRE / TEE                          -->
+        <!-- ════════════════════════════════════════════ -->
+        <div class="section-divider div-purple" data-delay="900">
+            <div class="divider-line"></div>
+            <div class="divider-label">Phase 3 — Chainlink CRE / TEE Computation</div>
+            <div class="divider-line"></div>
+        </div>
+
+        <div class="flow" id="phase3">
+
+            <div class="node n-purple" data-delay="1000">
+                <div class="node-title">Chainlink Nodes Detect Claim</div>
+                <div class="node-desc">The decentralized oracle network picks up the on-chain event securely routing the
+                    encrypted payload to a confidential computing enclave.</div>
+            </div>
+
+            <div class="arrow arr-purple" data-delay="1100">
+                <div class="arrow-line"></div>
+                <div class="arrow-head"></div>
+            </div>
+
+            <!-- TEE BOX -->
+            <div class="tee-box" data-delay="1200">
+                <div class="tee-badge">🔒 Inside Chainlink CRE TEE · All data stays here</div>
+                <div class="tee-inner">
+
+                    <div class="node n-purple" data-delay="1300" style="opacity:1;transform:none;">
+                        <div class="node-title">Step 1 — Decrypt Payload</div>
+                        <div class="node-desc">Payload is securely decrypted inside the TEE using the enclave's private
+                            keys. The FHIR Claim ID and World ID proof are accessed privately.</div>
+                    </div>
+
+                    <div class="row-2">
+                        <div class="node n-cyan" data-delay="1400" style="opacity:1;transform:none;">
+                            <div class="node-title">Step 2a — Verify World ID <span class="real-badge real">Real
+                                    API</span></div>
+                            <div class="node-desc">Directly queries World ID endpoint from the enclave. Ensures claim
+                                isn't a duplicate and claimant is a verified human.</div>
+                        </div>
+                        <div class="node n-teal" data-delay="1500" style="opacity:1;transform:none;">
+                            <div class="node-title">Step 2b — Fetch Electronic Health Record <span
+                                    class="real-badge real">Real API</span></div>
+                            <div class="node-desc">Directly queries the hospital's FHIR API to fetch the actual
+                                diagnosis (e.g., ICD-10 code J06.9), treatment date, and billed cost.</div>
+                        </div>
+                    </div>
+
+                    <div class="node n-purple" data-delay="1600" style="opacity:1;transform:none;">
+                        <div class="node-title">Step 3 — Eligibility Logic</div>
+                        <div class="node-desc">Checks ICD-10 code against covered conditions list · Validates treatment
+                            date within <code>coverageStart</code>–<code>coverageEnd</code> · Calculates payout at 80%
+                            of billed, capped at $500. All logic runs in WASM. Never exposed.</div>
+                        <div class="lock-row">
+                            <span class="lock-chip">ICD-10 code</span>
+                            <span class="lock-chip">diagnosis text</span>
+                            <span class="lock-chip">billed amount</span>
+                            <span class="lock-chip">treatment date</span>
+                        </div>
+                    </div>
+
+                    <div class="node n-yellow" data-delay="1700" style="opacity:1;transform:none;">
+                        <div class="node-title">Step 4 — Finalize Verdict</div>
+                        <div class="node-desc">A non-reversible compliance hash is generated. Only the final output
+                            (Approved/Denied, Payout) leaves the TEE. The medical data is securely destroyed.</div>
+                    </div>
+
+                </div><!-- /tee-inner -->
+            </div><!-- /tee-box -->
+
+        </div><!-- /phase3 -->
+
+        <!-- ════════════════════════════════════════════ -->
+        <!-- PHASE 4: WRITE VERDICT ONCHAIN              -->
+        <!-- ════════════════════════════════════════════ -->
+        <div class="section-divider div-green" data-delay="1800">
+            <div class="divider-line"></div>
+            <div class="divider-label">Phase 4 — Write Verdict Onchain</div>
+            <div class="divider-line"></div>
+        </div>
+
+        <div class="flow" id="phase4">
+
+            <div class="arrow arr-orange" data-delay="1900">
+                <div class="arrow-label">Chainlink CRE writes directly on-chain</div>
+                <div class="arrow-line"></div>
+                <div class="arrow-head"></div>
+            </div>
+
+            <div class="node n-orange" data-delay="2000">
+                <div class="node-title">Policy Registry Updated <span class="real-badge real">Real TX</span></div>
+                <div class="node-desc">The Chainlink enclave signs and submits the final status (e.g. APPROVED) and
+                    computed payout to the blockchain.</div>
+            </div>
+
+            <div class="arrow arr-green" data-delay="2100">
+                <div class="arrow-line"></div>
+                <div class="arrow-head"></div>
+            </div>
+
+            <!-- OUTCOMES -->
+            <div class="outcome-row" data-delay="2200">
+                <div class="node n-green" style="opacity:0;transform:translateY(20px);">
+                    <div class="node-title">✅ APPROVED → USDC Payout</div>
+                    <div class="node-desc">Smart contract automatically transfers USDC from the settlement liquidity
+                        pool directly to the user's wallet.</div>
+                </div>
+                <div class="node n-red" style="opacity:0;transform:translateY(20px);">
+                    <div class="node-title">❌ DENIED → Audit Trail Updated</div>
+                    <div class="node-desc">Smart contract logs the denial reason code (e.g. NOT_COVERED) without ever
+                        exposing the user's diagnosis on-chain.</div>
+                </div>
+            </div>
+
+            <div class="arrow arr-blue" data-delay="2400">
+                <div class="arrow-label">User interfaces updates</div>
+                <div class="arrow-line"></div>
+                <div class="arrow-head"></div>
+            </div>
+
+            <div class="node n-blue" data-delay="2500">
+                <div class="node-title">Phase 5 — Claim Settled & Available for Public Verification</div>
+                <div class="node-desc">The claimant successfully receives reimbursement. Auditors can verify the
+                    <strong>Compliance Hash</strong> and enclave signature, while medical records remain strictly
+                    private.</div>
+            </div>
+
+        </div><!-- /phase4 -->
+
+        <!-- LEGEND -->
+        <div class="legend" id="legend" style="opacity:0;transition:opacity .6s ease;">
+            <div class="legend-item">
+                <div class="legend-dot" style="background:var(--blue)"></div> User / Frontend
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:var(--orange)"></div> On-chain (Solidity)
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:var(--purple)"></div> Chainlink CRE — TEE Enclave
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:var(--cyan)"></div> External API (World ID)
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:var(--teal)"></div> External API (HAPI FHIR)
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:var(--green)"></div> Approved / Payout
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:var(--red)"></div> Denied
+            </div>
+            <div class="legend-item">
+                <span class="real-badge real" style="margin:0">REAL</span>&nbsp;Live production call
+            </div>
+            <div class="legend-item">
+                <span class="real-badge sim" style="margin:0">SIM</span>&nbsp;Simulated for demo
+            </div>
+        </div>
+
+    </div><!-- /canvas -->
+
+    <script>
+        // Staggered reveal using IntersectionObserver
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const el = entry.target
+                    const delay = parseInt(el.dataset.delay ?? '0')
+                    setTimeout(() => el.classList.add('visible'), delay)
+                    // For outcome row children
+                    if (el.classList.contains('outcome-row')) {
+                        el.querySelectorAll('.node').forEach((n, i) => {
+                            setTimeout(() => { n.style.opacity = '1'; n.style.transform = 'translateY(0)'; }, delay + i * 150)
+                        })
+                    }
+                    observer.unobserve(el)
+                }
+            })
+        }, { threshold: 0.1, rootMargin: '0px 0px -60px 0px' })
+
+        document.querySelectorAll('[data-delay]').forEach(el => observer.observe(el))
+
+        // Legend
+        setTimeout(() => {
+            const legend = document.getElementById('legend')
+            if (legend) legend.style.opacity = '1'
+        }, 3000)
+    </script>
+</body>
+
+</html>
