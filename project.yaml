@@ -5,10 +5,10 @@
 
 staging-settings:
   account:
-    workflow-owner-address: ""   # Fill: your deployer wallet address
+    workflow-owner-address: "0x7FBbE68068A3Aa7E479A1E51e792F4C2073b018f"
   rpcs:
-    - chainId: 1                 # Tenderly Virtual Testnet forks mainnet (chain 1)
-      url: ""                    # Fill: TENDERLY_RPC_URL from .env
+    - chain-name: ethereum-mainnet-base-1   # Tenderly Virtual Testnet forks Base
+      url: "https://virtual.base.eu.rpc.tenderly.co/12d3294c-7d06-4b30-ad8d-f074d7e7d34d"
 
 production-settings:
   account:

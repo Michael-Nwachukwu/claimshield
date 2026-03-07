@@ -4,8 +4,9 @@
     "policyRegistryAddress": "0x8998151A1EE905EFd20189a89A6910c4a0d2DeCb",
     "claimRequestAddress": "0x56d522a352204a827100E0b3440621395a703c2B",
     "claimSettlementAddress": "0xDbe7F4351BE37985849ec452E1f4e3FfE6b8bC88",
-    "claimSubmittedEventSignature": "ClaimSubmitted(bytes32,address,bytes,uint256)",
+    "claimSubmittedEventSignature": "0x98b0517d6690a4094b2f2705a21ab8ecfae6863f6a5537402590b3dc3b4a78e3",
     "worldIdAppId": "app_d2d6e31b837c0b48bd8d9093f3b8f300",
     "worldIdAction": "submit-claim",
+    "worldIdBaseUrl": "https://staging-developer.worldcoin.org",
     "owner": "0x7FBbE68068A3Aa7E479A1E51e792F4C2073b018f"
 }
