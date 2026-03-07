@@ -2,14 +2,14 @@
  * processor.ts — Local Simulation Enclave Orchestrator
  *
  * This file simulates what runs inside the Chainlink CRE TEE.
- * It is used by scripts/run-enclave.ts for the terminal demo.
+ * It is used by scripts/demo.ts for the terminal demo.
  *
  * In the production CRE workflow (workflow/main.ts), this same logic is executed
  * inside the TEE using the CRE SDK's ConfidentialHTTPClient. The key differences:
  *
  *   SIMULATION (this file):
  *   - Uses ethers.js with a raw private key from ENCLAVE_PRIVATE_KEY env var
- *   - Uses standard fetch() for HTTP calls
+ *   - Uses standard fetch() for HTTP calls (ConfidentialHTTPClient in production)
  *   - Logs are visible in the terminal (intentional — shows judges the private data)
  *   - Point out: "In production CRE, these logs stay inside the TEE"
  *
@@ -47,10 +47,20 @@ const ENCLAVE_PRIVATE_KEY = process.env.ENCLAVE_PRIVATE_KEY!
 const TENDERLY_RPC_URL = process.env.TENDERLY_RPC_URL!
 
 /**
+ * World ID proof fields — bundled inside the encrypted payload onchain.
+ * The enclave decrypts these and verifies them via World ID Cloud API.
+ */
+export type WorldIdProof = Record<string, any>
+
+/**
  * Main entry point for local simulation.
  * In production CRE, this logic runs as the EVM Log Trigger handler inside the TEE.
+ *
+ * @param payload   Policy + FHIR claim ID (decrypted from the onchain payload)
+ * @param worldId   World ID proof fields (decrypted from the same onchain payload)
+ *                  If provided, the simulation calls the real World ID Cloud API.
  */
-export async function processClaim(payload: ClaimPayload): Promise<void> {
+export async function processClaim(payload: ClaimPayload, worldId?: WorldIdProof): Promise<void> {
     const provider = new ethers.JsonRpcProvider(TENDERLY_RPC_URL)
     const enclaveSigner = new ethers.Wallet(ENCLAVE_PRIVATE_KEY, provider)
 
@@ -59,6 +69,9 @@ export async function processClaim(payload: ClaimPayload): Promise<void> {
 
     const policyIdBytes = ethers.id(payload.policy_id)
 
+    const appId = process.env.WORLD_ID_APP_ID!
+    const action = process.env.WORLD_ID_ACTION ?? 'submit-claim'
+
     console.log('\n[ENCLAVE] ══════════════════════════════════════════════════════')
     console.log('[ENCLAVE] ClaimShield — Processing medical claim inside TEE')
     console.log('[ENCLAVE] ══════════════════════════════════════════════════════')
@@ -66,6 +79,62 @@ export async function processClaim(payload: ClaimPayload): Promise<void> {
     console.log(`[ENCLAVE] FHIR ID    : ${payload.fhir_claim_id}  ← PRIVATE (in production: stays in TEE, NOT logged)`)
     console.log(`[ENCLAVE] Claimant   : ${payload.wallet}`)
     console.log('[ENCLAVE] ──────────────────────────────────────────────────────')
+
+    // ── Step 0: Verify World ID proof via Cloud API ───────────────────────────
+    // In production CRE: this call executes via ConfidentialHTTPClient inside TEE.
+    // The proof fields are decrypted from the onchain payload — never logged externally.
+    // Here in simulation: we call the real World ID Cloud API via fetch() to show
+    // the exact request/response the enclave will execute inside the TEE.
+    if (worldId) {
+        console.log('\n[ENCLAVE] Step 0: Verifying World ID proof via Cloud API...')
+        console.log('[ENCLAVE] Simulation: fetch() | Production: ConfidentialHTTPClient (inside TEE)')
+        console.log('[ENCLAVE] ──────────────────────────────────────────────────────')
+        console.log(`[ENCLAVE]   → POST https://developer.worldcoin.org/api/v4/verify/${appId}`)
+        console.log(`[ENCLAVE]   → Request body:`)
+        console.log(`[ENCLAVE]       (Raw IDKit payload passed to V4 API)`)
+        console.log('[ENCLAVE]   Sending request to World ID Cloud API...')
+
+        let worldIdVerified = false
+        try {
+            const resp = await fetch(`https://developer.worldcoin.org/api/v4/verify/${appId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                // IDKit v3 payload already has action/environment/responses embedded — forward as-is
+                body: JSON.stringify(worldId),
+            })
+
+            const result = await resp.json() as Record<string, unknown>
+
+            console.log(`[ENCLAVE]   ← HTTP status  : ${resp.status} ${resp.ok ? '✓ OK' : '✗ ERROR'}`)
+            console.log(`[ENCLAVE]   ← Response body: ${JSON.stringify(result)}`)
+
+            if (result.success === true) {
+                worldIdVerified = true
+                console.log(`[ENCLAVE]   ← success      : true`)
+                if (result.uses !== undefined) {
+                    console.log(`[ENCLAVE]   ← uses         : ${result.uses}  (times this nullifier verified for "${action}")`)
+                }
+                if (result.action !== undefined) {
+                    console.log(`[ENCLAVE]   ← action       : ${result.action}`)
+                }
+            } else {
+                const code = result.code ?? result.detail ?? 'unknown error'
+                console.log(`[ENCLAVE]   ← success      : false — ${code}`)
+            }
+        } catch (err) {
+            console.log(`[ENCLAVE]   ← Network error: ${err}`)
+        }
+
+        if (!worldIdVerified) {
+            console.log('[ENCLAVE] ✗ World ID verification FAILED — identity proof invalid or already used')
+            console.log('[ENCLAVE]   Claim denied. ReasonCode: UNAUTHORIZED (5)')
+            return writeVerdict(registry, settlement, policyIdBytes, payload.wallet, 'denied', 0, ReasonCode.UNAUTHORIZED)
+        }
+
+        console.log('[ENCLAVE] ✓ World ID proof VERIFIED — real human identity confirmed')
+        console.log('[ENCLAVE]   Sybil resistance: this nullifier cannot be reused for the same action')
+        console.log('[ENCLAVE] ──────────────────────────────────────────────────────')
+    }
 
     // ── Step 1: Verify policy status onchain ─────────────────────────────────
     console.log('[ENCLAVE] Step 1: Checking policy status onchain...')

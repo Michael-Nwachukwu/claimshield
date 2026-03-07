@@ -1,6 +1,6 @@
 # ClaimShield
 
-> *"The insurer approved a medical claim — verified against live patient records — without ever seeing the diagnosis, the treatment date, or the billed amount."*
+> *"The insurer approved a medical claim — verified against live patient records and a real human identity — without ever seeing the diagnosis, the treatment date, or who the claimant was."*
 
 A **privacy-preserving medical insurance claims processor** built for the [Chainlink CRE Hackathon](https://chain.link/) — Privacy Track.
 
@@ -41,42 +41,57 @@ TRADITIONAL SYSTEM — The Privacy Problem
     │◀── "Approved. $100 payout" ───│  transfers money
     │                               │
   The Problem:
-  This traditional method forces the patient to surrender all of their sensitive medical data to a third-party insurer, creating a honeypot of private health records on centralized servers. Furthermore, the process lacks transparency and accountability—patients are forced to blindly trust the insurer's eligibility rules and operators, with no on-chain audit trail to verify how claims or settlements are handled.
+  This traditional method forces the patient to surrender all of their sensitive
+  medical data to a third-party insurer, creating a honeypot of private health
+  records on centralized servers. The process also lacks transparency —
+  patients blindly trust the insurer's eligibility rules with no on-chain
+  audit trail to verify how claims or settlements are handled.
 ```
 
-**The core tension:** To get paid, the patient must reveal private health data. There is currently no way to prove eligibility *without* exposure.
+**The core tension:** To get paid, the patient must reveal private health data. And to submit a claim, *anyone* with a wallet can call the contract — nothing stops a bot from spamming claims under stolen policy IDs.
 
-Solving this problem is ClaimShield — a privacy-preserving insurance claims processor that verifies eligibility against live electronic health records (EHR) *without* exposing the underlying medical data. It shifts the paradigm from "share data to prove eligibility" to "run trusted code to prove eligibility," ensuring the insurer process claims trustlessly while keeping patient records strictly confidential.
-
-Here's how it works: A patient receives medical treatment and their healthcare provider logs the details in an Electronic Health Record (EHR) system, generating a unique FHIR claim ID. The patient comes to ClaimShield and submits a claim by providing their policy ID and the FHIR claim ID. A unique hash of this information is sent on-chain, triggering the ClaimShield enclave. The enclave securely connects to the live EHR system, retrieves the patient's medical data, and evaluates it against the policy's covered conditions and limits. Once verified, the enclave securely records an "Approved" or "Denied" verdict on-chain and triggers an automatic USDC payout to the patient's wallet, all without ever exposing the sensitive medical diagnosis.
+ClaimShield solves both: privacy via TEE processing, and Sybil resistance via World ID.
 
 ---
 
 ## 2. The Solution
 
 ```
-CLAIMSHIELD — Privacy-Preserving Claims
+CLAIMSHIELD — Privacy-Preserving Claims with Sybil Resistance
 
-  Patient         Blockchain          CRE Enclave (TEE)        FHIR API
-    │                  │                      │                    │
-    │── hash only ────▶│                      │                    │
-    │   (no PII)       │── event triggers ───▶│                    │
-    │                  │                      │── confidential ───▶│
-    │                  │                      │   HTTP fetch       │
-    │                  │                      │◀── full record ────│
-    │                  │                      │   (stays in TEE)   │
-    │                  │                      │                    │
+  Patient         Blockchain          CRE Enclave (TEE)        External APIs
+    │                  │                      │                      │
+    │                  │                      │                      │
+    │  1. Bundle:      │                      │                      │
+    │  { fhirId,       │                      │                      │
+    │    World ID ZKP} │                      │                      │
+    │  encrypted ─────▶│                      │                      │
+    │  (XOR, TEE key)  │── event triggers ───▶│                      │
+    │                  │                      │                      │
+    │                  │                      │── Step 1: World ID ─▶│
+    │                  │                      │   POST /verify        │
+    │                  │                      │   (inside TEE)        │
+    │                  │                      │◀── { success: true } ─│
+    │                  │                      │   proof verified      │
+    │                  │                      │                      │
+    │                  │                      │── Step 2: FHIR ──────▶│
+    │                  │                      │   GET /Claim/131...   │
+    │                  │                      │   (inside TEE)        │
+    │                  │                      │◀── full FHIR record ──│
+    │                  │                      │   stays in TEE        │
+    │                  │                      │                      │
     │                  │                      │  [runs eligibility
     │                  │                      │   in private]
     │                  │                      │
     │                  │◀── verdict only ─────│
-    │                  │    APPROVED + $120    │
-    │                  │    no diagnosis data  │
+    │                  │    APPROVED + $120   │
+    │                  │    no medical data   │
     │◀── $120 USDC ────│                      │
-    
+
   Results:
   ✅  Patient proves eligibility WITHOUT revealing diagnosis
   ✅  Insurer processes the claim WITHOUT seeing raw medical data
+  ✅  World ID ensures ONE human = ONE claim (Sybil resistant)
   ✅  Verdict and USDC payout are on-chain and publicly auditable
   ✅  No single operator can forge a verdict (DON consensus)
   ✅  EHR credentials are never in code or logs — Vault DON only
@@ -84,9 +99,9 @@ CLAIMSHIELD — Privacy-Preserving Claims
 
 ### The Key Insight
 
-You don't need to *share* your medical records to *prove* you're eligible for reimbursement. You just need a trusted, verifiable computation to check them on your behalf and produce a verdict — without leaking what it found.
+You don't need to *share* your medical records or identity to *prove* you're eligible for reimbursement. You just need trusted, verifiable computation to check them on your behalf and produce a verdict — without leaking what it found.
 
-Chainlink CRE's TEE is that verifiable computation.
+Chainlink CRE's TEE is that verifiable computation. World ID is the proof that a real human submitted it.
 
 ---
 
@@ -102,7 +117,7 @@ CRE adds three capabilities on top of a basic TEE:
 
 | CRE Capability | What it provides |
 |---|---|
-| **ConfidentialHTTPClient** | HTTPS requests execute *inside* the TEE — the response body is decrypted only inside the enclave. Nothing is visible to external observers, including the node operator. |
+| **ConfidentialHTTPClient** | HTTPS requests execute *inside* the TEE — both the World ID verification and FHIR fetch happen here. Responses are decrypted only inside the enclave. Nothing is visible to external observers, including the node operator. |
 | **Vault DON Secrets** | API credentials (e.g., EHR OAuth2 tokens) are stored encrypted in the Vault DON and injected at request time via `{{.secret}}` template syntax. They never appear in code, logs, or process memory. |
 | **EVM Log Trigger** | The workflow fires *automatically and instantly* when a `ClaimSubmitted` event is emitted on-chain — no polling, no cron, no manual intervention. |
 
@@ -117,30 +132,46 @@ CRE adds three capabilities on top of a basic TEE:
 │                                                                             │
 │  ① SETUP (done once by insurer)                                             │
 │                                                                             │
-│   Deployer ──▶ PolicyRegistry.registerPolicy()  ──▶ Policy registered      │
-│   Deployer ──▶ PolicyRegistry.payPremium()       ──▶ Policy activated       │
+│   Deployer ──▶ PolicyRegistry.registerPolicy()   ──▶ Policy registered     │
+│   Deployer ──▶ PolicyRegistry.payPremium()        ──▶ Policy activated      │
 │   Deployer ──▶ ClaimSettlement.depositLiquidity() ──▶ $10,000 USDC in pool  │
 │                                                                             │
 └─────────────────────────────────┬───────────────────────────────────────────┘
                                   │
 ┌─────────────────────────────────▼───────────────────────────────────────────┐
 │                                                                             │
-│  ② SUBMISSION (claimant triggers the flow)                                  │
+│  ② PRE-SUBMISSION — World ID Proof Generation (client-side, one-time)      │
 │                                                                             │
-│   scripts/submit-claim.ts                                                  │
+│   1. Claimant visits worldid-gen app (bun worldid-gen/signing-server.ts)   │
+│   2. Server signs rp_context with RP private key → IDKit widget shown      │
+│   3. World ID Simulator scans QR code → issues ZK proof                    │
+│   4. Proof saved to world-id-proof.json:                                   │
+│      { nullifier_hash, merkle_root, proof, verification_level }            │
 │                                                                             │
-│   1. Build payload: { policy_id, wallet, fhir_claim_id }                   │
-│   2. Hash it:  encryptedPayloadHash = keccak256(payload)                   │
-│      └─ fhir_claim_id "131299879" NEVER touches the blockchain             │
-│   3. Call:  ClaimRequest.submitClaim(policyId, encryptedPayloadHash)       │
-│   4. Emits: ClaimSubmitted(policyId, claimant, hash, timestamp)            │
+│   ⚠ Proofs are single-use. Generate a fresh one before each demo run.      │
+│                                                                             │
+└─────────────────────────────────┬───────────────────────────────────────────┘
+                                  │
+┌─────────────────────────────────▼───────────────────────────────────────────┐
+│                                                                             │
+│  ③ SUBMISSION (claimant triggers the flow)                                  │
+│                                                                             │
+│   scripts/demo.ts  (or submit-claim.ts)                                    │
+│                                                                             │
+│   1. Read world-id-proof.json                                               │
+│   2. Bundle: { fhirId, nullifier_hash, merkle_root, proof,                 │
+│               verification_level }                                          │
+│   3. Encrypt bundle with shared secret (XOR cipher)                        │
+│      └─ FHIR ID and World ID proof NEVER touch the blockchain in plaintext │
+│   4. Call: ClaimRequest.submitClaim(policyId, encryptedPayload)             │
+│   5. Emits: ClaimSubmitted(policyId, claimant, bytes encryptedPayload, ts) │
 │                                                                             │
 └─────────────────────────────────┬───────────────────────────────────────────┘
                                   │  ClaimSubmitted event
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                                                                             │
-│  ③ CRE ENCLAVE (fully private — nothing inside is visible externally)       │
+│  ④ CRE ENCLAVE (fully private — nothing inside is visible externally)       │
 │                                                                             │
 │   EVM Log Trigger detects ClaimSubmitted                                   │
 │         │                                                                   │
@@ -148,20 +179,25 @@ CRE adds three capabilities on top of a basic TEE:
 │   ┌───────────────────────────────────────────────────────────────────┐    │
 │   │  TEE BOUNDARY — hardware-enforced isolation                       │    │
 │   │                                                                    │    │
-│   │  Step A: Read policy from PolicyRegistry (on-chain read)          │    │
-│   │          → verify active, premium paid, not duplicate             │    │
+│   │  Step A: Decrypt payload → extract fhirId + World ID fields       │    │
 │   │                                                                    │    │
-│   │  Step B: ConfidentialHTTPClient.sendRequest()                     │    │
-│   │          → GET https://hapi.fhir.org/baseR4/Claim/131299879      │    │
+│   │  Step B: ConfidentialHTTPClient POST → World ID Cloud API         │    │
+│   │          → POST /api/v1/verify/{appId}                            │    │
+│   │          → Body: { nullifier_hash, merkle_root, proof, action }  │    │
+│   │          → Response: { success: true }     ← STAYS IN TEE        │    │
+│   │          If fails → DENIED (ReasonCode.UNAUTHORIZED)              │    │
+│   │                                                                    │    │
+│   │  Step C: ConfidentialHTTPClient GET → FHIR EHR API               │    │
+│   │          → GET /baseR4/Claim/{fhirId}                             │    │
 │   │          → Auth token injected from Vault DON   ← PRIVATE        │    │
 │   │          → Full FHIR response received          ← STAYS IN TEE   │    │
 │   │                                                                    │    │
-│   │  Step C: evaluateMedicalClaim()                                   │    │
+│   │  Step D: evaluateMedicalClaim()                                   │    │
 │   │          → ICD-10 "J06.9" — in covered list?   YES   ← PRIVATE   │    │
 │   │          → Date "2024-06-10" in 2024 coverage?  YES   ← PRIVATE   │    │
 │   │          → Payout: $150 × 80% = $120.00                ← PRIVATE  │    │
 │   │                                                                    │    │
-│   │  Step D: Compute compliance hash                                  │    │
+│   │  Step E: Compute compliance hash                                  │    │
 │   │          complianceHash = keccak256(policyId + status + ts)      │    │
 │   │          Non-reversible. Proves verification occurred.            │    │
 │   │                                                                    │    │
@@ -175,7 +211,7 @@ CRE adds three capabilities on top of a basic TEE:
                                   │
 ┌─────────────────────────────────▼───────────────────────────────────────────┐
 │                                                                             │
-│  ④ ON-CHAIN SETTLEMENT (public, verifiable)                                 │
+│  ⑤ ON-CHAIN SETTLEMENT (public, verifiable)                                 │
 │                                                                             │
 │   Enclave wallet calls:                                                     │
 │   PolicyRegistry.recordVerdict(policyId, "approved", 120_000000, 0, hash) │
@@ -194,11 +230,13 @@ CRE adds three capabilities on top of a basic TEE:
 | Step | Actor | Action | What's Private | What's Public |
 |---|---|---|---|---|
 | 1 | Insurer | Register policy, pay premium, fund USDC pool | Coverage rules | Policy exists, enclave address |
-| 2 | Claimant | Call `submitClaim(policyId, hash)` | FHIR ID, diagnosis | policyId, claimant wallet, hash |
-| 3 | CRE TEE | Fetch FHIR record via Confidential HTTP | Everything in FHIR response | Nothing |
-| 4 | CRE TEE | Run eligibility against covered ICD-10 list | ICD-10 code, date, amount, rules | Nothing |
-| 5 | CRE TEE | Write verdict + trigger payout | — | status, payout amount, compliance hash |
-| 6 | Chain | USDC transfer to claimant | — | Transfer visible in block explorer |
+| 2 | Claimant | Generate World ID ZK proof via worldid-gen app | Proof fields, identity | Nothing |
+| 3 | Claimant | Bundle { fhirId + World ID proof }, encrypt, call `submitClaim()` | FHIR ID, proof | policyId, claimant wallet, encrypted blob |
+| 4 | CRE TEE | Decrypt bundle, verify World ID via ConfidentialHTTPClient | nullifier, merkle root, proof | Nothing |
+| 5 | CRE TEE | Fetch FHIR record via Confidential HTTP | Everything in FHIR response | Nothing |
+| 6 | CRE TEE | Run eligibility against covered ICD-10 list | ICD-10 code, date, amount, rules | Nothing |
+| 7 | CRE TEE | Write verdict + trigger payout | — | status, payout amount, compliance hash |
+| 8 | Chain | USDC transfer to claimant | — | Transfer visible in block explorer |
 
 ---
 
@@ -208,8 +246,13 @@ CRE adds three capabilities on top of a basic TEE:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
+│  LAYER 0 — World ID Proof Generation (worldid-gen/)                     │
+│  signing-server.ts (rp_context)   src/main.jsx (IDKit widget)           │
+└────────────────────────────────┬────────────────────────────────────────┘
+                                 │ world-id-proof.json
+┌────────────────────────────────▼────────────────────────────────────────┐
 │  LAYER 1 — Terminal Scripts (User Interface / Demo)                     │
-│  submit-claim.ts   run-enclave.ts   check-verdict.ts                    │
+│  demo.ts   submit-claim.ts   run-enclave.ts   check-verdict.ts          │
 └────────────────────────────────┬────────────────────────────────────────┘
                                  │
 ┌────────────────────────────────▼────────────────────────────────────────┐
@@ -219,17 +262,18 @@ CRE adds three capabilities on top of a basic TEE:
                                  │  ClaimSubmitted event
 ┌────────────────────────────────▼────────────────────────────────────────┐
 │  LAYER 3 — CRE Workflow (workflow/main.ts)                              │
-│  EVM Log Trigger → ConfidentialHTTPClient → onClaimSubmitted()          │
+│  EVM Log Trigger → decrypt bundle → World ID verify → FHIR fetch       │
 └────────────────────────────────┬────────────────────────────────────────┘
-                                 │  Confidential HTTP
+                                 │  Confidential HTTP (both APIs)
 ┌────────────────────────────────▼────────────────────────────────────────┐
 │  LAYER 4 — Enclave Logic (enclave/)                                     │
 │  types.ts   fetchers/fhir.ts   eligibility/medical.ts   processor.ts   │
 └────────────────────────────────┬────────────────────────────────────────┘
                                  │
 ┌────────────────────────────────▼────────────────────────────────────────┐
-│  LAYER 5 — External Healthcare API                                      │
-│  HAPI FHIR Sandbox: hapi.fhir.org/baseR4/Claim/131299879               │
+│  LAYER 5 — External APIs                                                │
+│  World ID Cloud API: developer.worldcoin.org/api/v1/verify              │
+│  HAPI FHIR Sandbox:  hapi.fhir.org/baseR4/Claim/131299879              │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -260,14 +304,14 @@ CRE adds three capabilities on top of a basic TEE:
                    ▼                │   receives $120 USDC │
           ┌────────────────────┐    └──────────────────────┘
           │    CRE Enclave     │
-          │  (calls both       │
-          │   contracts above) │         ┌──────────────────┐
-          └────────┬───────────┘         │   ClaimRequest   │
-                   │                     │                  │
-                   │ triggered by        │ • stateless      │
-                   └─────────────────────│ • emits events   │
-                          event          │ • no PII stored  │
-                                         └──────────────────┘
+          │  Step 1: World ID  │         ┌──────────────────┐
+          │  Step 2: FHIR      │         │   ClaimRequest   │
+          │  (ConfHTTPClient)  │         │                  │
+          └────────┬───────────┘         │ • stateless      │
+                   │                     │ • emits events   │
+                   │ triggered by        │ • no PII stored  │
+                   └─────────────────────│ • bytes payload  │
+                          event          └──────────────────┘
 ```
 
 ---
@@ -306,19 +350,27 @@ struct Verdict {
 
 Intentionally the simplest contract in the system. **Zero storage. One function. One event.**
 
-Its only job is to fire the CRE EVM Log Trigger.
+Its only job is to fire the CRE EVM Log Trigger with the encrypted bundle.
 
 ```solidity
 // What goes onchain (in the ClaimSubmitted event):
-policyId             // bytes32 — keccak256("DEMO-001")
-claimant             // address — the submitting wallet
-encryptedPayloadHash // bytes32 — keccak256 of the payload, NOT the payload itself
-timestamp            // uint256 — block.timestamp
+policyId          // bytes32 — keccak256("DEMO-001")
+claimant          // address — the submitting wallet
+encryptedPayload  // bytes   — XOR-encrypted bundle containing:
+                  //             { fhirId, nullifier_hash, merkle_root,
+                  //               proof, verification_level }
+                  //           Only the TEE can decrypt this
+timestamp         // uint256 — block.timestamp
 
-// What NEVER goes onchain:
-// fhir_claim_id "131299879" — never in calldata, never in logs
-// diagnosis, treatment date, billed amount — never anywhere onchain
+// What NEVER goes onchain in plaintext:
+// fhir_claim_id  — bundled into encryptedPayload, XOR-encrypted
+// nullifier_hash — bundled into encryptedPayload, XOR-encrypted
+// merkle_root    — bundled into encryptedPayload, XOR-encrypted
+// ZK proof       — bundled into encryptedPayload, XOR-encrypted
+// diagnosis, treatment date, billed amount — never onchain
 ```
+
+> **Why `bytes` and not `bytes32`?** The World ID proof alone is hundreds of bytes. A fixed `bytes32` hash would let the enclave verify it but lose the proof data needed for the World ID Cloud API. Using variable-length `bytes` lets the TEE receive the full proof and verify it via ConfidentialHTTPClient.
 
 > **Why stateless?** If ClaimRequest stored anything — even a mapping of who submitted what — it would create a linkability risk. Storing nothing makes it a pure event bus with no information leakage.
 
@@ -328,10 +380,10 @@ Holds the insurer's USDC pool and releases it when the enclave approves a claim.
 
 ```
 USDC Pool Flow:
-  
+
   Insurer ──▶ USDC.approve(claimSettlement, 10_000_000000)
            ──▶ depositLiquidity(10_000_000000)  ← $10,000 USDC
-  
+
   Enclave ──▶ executePayout(policyId, claimant, 120_000000)
            └─ USDC.transfer(claimant, 120_000000)  ← $120.00 to claimant
 ```
@@ -358,7 +410,7 @@ Traditional oracle approach:      CRE EVM Log Trigger:
 const logTrigger = evmClient.logTrigger({
   addresses: [hexToBase64(config.claimRequestAddress)],
   topics: [{
-    // keccak256("ClaimSubmitted(bytes32,address,bytes32,uint256)")
+    // keccak256("ClaimSubmitted(bytes32,address,bytes,uint256)")
     values: [topicToBase64(config.claimSubmittedEventSignature)],
   }],
 })
@@ -368,46 +420,66 @@ return [handler(logTrigger, onClaimSubmitted)]
 
 The moment a claim is submitted on-chain, the CRE DON fires `onClaimSubmitted()` inside the TEE.
 
-### 7.2 ConfidentialHTTPClient — The Core Privacy Primitive
+### 7.2 Two ConfidentialHTTPClient Calls Inside the TEE
 
-This is what makes ClaimShield possible. The FHIR API call lives *inside* the TEE:
+Both API calls execute inside the TEE — no external observer can see the request bodies, response contents, or the decision logic applied to them.
 
 ```
-Standard HTTP (no privacy):
-  Node.js ── GET /Claim/131299879 ──▶ FHIR API
-    ↑ response visible in logs,             │
-      network traces, process memory  ◀─────┘
-  
-  
-Confidential HTTP (CRE TEE):
-  ┌──────────────────── TEE BOUNDARY ────────────────────────────────┐
-  │                                                                   │
-  │  handler ──▶ confHTTP.sendRequest(runtime, {                     │
-  │                request: {                                         │
-  │                  url: "https://hapi.fhir.org/baseR4/Claim/...", │
-  │                  headers: {                                       │
-  │                    Accept: "application/fhir+json",              │
-  │                    // PRODUCTION:                                 │
-  │                    // Authorization: "Bearer {{.ehrAuthToken}}"  │
-  │                    //   ↑ injected from Vault DON at runtime     │
-  │                    //     never in code, logs, or env vars       │
-  │                  }                                                │
-  │                }                                                  │
-  │              })                                                   │
-  │                                                                   │
-  │         ┌── HTTP call executes inside enclave ──▶ FHIR API ──┐  │
-  │         │                                                      │  │
-  │         └── Full FHIR response ◀────────────────────────────-─┘  │
-  │              decrypted only inside this enclave                   │
-  │                                                                   │
-  │  evaluateMedicalClaim(fhirRecord, ...) ← runs privately here      │
-  │                                                                   │
-  └───────────────────────┬───────────────────────────────────────────┘
-                          │
-     ONLY THIS EXITS: { status, payoutAmount, reasonCode, complianceHash }
+TEE BOUNDARY ─────────────────────────────────────────────────────────────────
+
+  1. Decrypt payload (ABI decode log.data → XOR decrypt → JSON.parse)
+     → fhirId, nullifier_hash, merkle_root, proof, verification_level
+
+  2. World ID Cloud API (ConfidentialHTTPClient):
+     POST https://developer.worldcoin.org/api/v1/verify/{appId}
+     Body: { nullifier_hash, merkle_root, proof, action, signal: "" }
+     ← { success: true }   if valid, unused nullifier for this action
+     ← { code: "..." }     if invalid or already used → DENIED
+
+  3. FHIR EHR API (ConfidentialHTTPClient):
+     GET https://hapi.fhir.org/baseR4/Claim/{fhirId}
+     Authorization: Bearer {{.ehrAuthToken}}  ← injected from Vault DON
+     ← Full FHIR R4 Claim resource → processed inside TEE, discarded
+
+  4. evaluateMedicalClaim() → verdict
+
+─────────────────────────────────────────────────────────────────── TEE BOUNDARY
+ONLY THIS EXITS: { status, payoutAmount, reasonCode, complianceHash }
 ```
 
-### 7.3 Eligibility Engine — `enclave/eligibility/medical.ts`
+### 7.3 World ID — Sybil Resistance Inside the TEE
+
+World ID ensures that each real human can only submit one claim per action. The ZK proof is verified inside the TEE — not client-side, not in the smart contract.
+
+```
+Why inside the TEE (not client-side)?
+
+  Client-side check:               TEE check (ClaimShield):
+  ─────────────────                ───────────────────────
+  Anyone can bypass by             Cannot bypass — the smart contract
+  calling submitClaim()            only emits the encrypted bundle.
+  directly without a proof.        The enclave decrypts and verifies
+                                   before any verdict is written.
+
+Why not in the smart contract?
+
+  On-chain check:                  TEE check (ClaimShield):
+  ──────────────                   ───────────────────────
+  Would expose nullifier_hash      Proof fields are inside the
+  and merkle_root in calldata.     encrypted payload — only the
+  Observer could link submissions  enclave can see them.
+  to identities over time.
+```
+
+**Proof lifecycle:**
+
+1. Claimant generates ZK proof using World ID Simulator (`worldid-gen` app)
+2. Proof is bundled with FHIR ID → encrypted → submitted as opaque bytes onchain
+3. Enclave decrypts → extracts proof → calls World ID Cloud API via ConfidentialHTTPClient
+4. API returns `{ success: true }` → enclave proceeds to FHIR step
+5. Nullifier is now consumed — the same proof cannot be reused for this action
+
+### 7.4 Eligibility Engine — `enclave/eligibility/medical.ts`
 
 The rules that determine claim approval are **private**. They live inside the enclave binary and are never published on-chain.
 
@@ -434,7 +506,7 @@ billedAmount ($150.00)
     = 120_000_000 (payoutAmount written onchain)
 ```
 
-### 7.4 Reason Codes — Privacy-Preserving Denial Notices
+### 7.5 Reason Codes — Privacy-Preserving Denial Notices
 
 When a claim is denied, only a numeric code is written onchain — not the reason text. This prevents inference of medical information from denials.
 
@@ -445,11 +517,11 @@ When a claim is denied, only a numeric code is written onchain — not the reaso
 | `2` | OUTSIDE_PERIOD — treatment date outside the coverage window |
 | `3` | DUPLICATE — this policy has already been claimed |
 | `4` | POLICY_INACTIVE — premium not paid |
-| `5` | UNAUTHORIZED — submitting wallet doesn't match policy owner |
+| `5` | UNAUTHORIZED — World ID proof invalid, already used, or wallet mismatch |
 | `6` | API_ERROR — FHIR fetch failed or returned unexpected data |
 | `7` | ESCALATED — edge case requiring human review |
 
-An observer can see that a claim was denied with code `1` but **cannot determine which ICD-10 code was rejected** — that information never left the enclave.
+An observer can see that a claim was denied with code `5` but **cannot determine why** — they can't see the proof, the nullifier, or whether the human had already claimed.
 
 ---
 
@@ -460,26 +532,29 @@ An observer can see that a claim was denied with code `1` but **cannot determine
 ```
 Client-side:
   fhir_claim_id = "131299879"
+  World ID proof = { nullifier_hash: 0x2dff..., merkle_root: 0x...,
+                     proof: 0x..., verification_level: "orb" }
         │
         ▼
-  payload = JSON({ policy_id, wallet, fhir_claim_id })
+  bundle = JSON({ fhirId, nullifier_hash, merkle_root, proof, verification_level })
         │
         ▼
-  hash = keccak256(payload)
+  encryptedPayload = XOR(bundle, sharedSecret)  ← 743-byte ciphertext
         │
-        ▼ only this goes onchain ──▶ ClaimSubmitted event
+        ▼ only this goes onchain ──▶ ClaimSubmitted(policyId, claimant, encryptedPayload, ts)
 
-An observer sees: "some hash was submitted for policy 0x2df8..."
-They CANNOT determine the FHIR ID from the hash.
+An observer sees: "743 bytes of ciphertext were submitted for policy 0x2df8..."
+They CANNOT determine the FHIR ID or reconstruct the World ID proof.
 ```
 
-**Production enhancement:** In a full deployment, the payload would be asymmetrically encrypted to the enclave's public key before hashing — meaning only the CRE enclave can decrypt and obtain the FHIR ID. The demo uses `keccak256` as a simplified stand-in.
+**Production encryption:** In a full deployment, asymmetric encryption to the DON's public key would replace the XOR cipher — only the TEE could decrypt. The XOR demo cipher serves the same architectural purpose with a simpler key management story.
 
 ### Layer 2 — Processing Privacy (inside the TEE)
 
 Nothing that happens inside the enclave is observable:
 
-- The FHIR API call and its response
+- The decrypted FHIR ID and the FHIR API call
+- The World ID proof verification response
 - The ICD-10 code matched against the covered list
 - The reimbursement rate and payout cap applied
 - The EHR API credentials (injected from Vault DON, never in code)
@@ -511,6 +586,7 @@ onchain verdict:
 **What you cannot determine from the blockchain:**
 
 - 🔒 The patient's diagnosis or ICD-10 code
+- 🔒 The World ID nullifier (Sybil resistance without identity exposure)
 - 🔒 The treatment date or provider
 - 🔒 The billed amount
 - 🔒 Which specific condition was not covered (on denial)
@@ -538,6 +614,8 @@ onchain verdict:
 
 | Attack | Mitigation |
 |---|---|
+| Attacker calls `submitClaim()` without a World ID proof | Enclave decrypts bundle, calls World ID API → rejects missing/invalid proof → DENIED (code 5) |
+| Same human submits two claims (Sybil) | World ID nullifier is single-use per action — second verification returns error → DENIED (code 5) |
 | Attacker forges a verdict | Reverts: `msg.sender != approvedEnclave` |
 | Attacker drains the USDC pool | Reverts: `msg.sender != approvedEnclave` |
 | Same claim submitted twice | Reverts: `claimProcessed[policyId] == true` |
@@ -562,9 +640,15 @@ This is why registering an `approvedEnclave` address per policy is the correct s
 ```
 claimshield/
 │
+├── worldid-gen/                    World ID Proof Generator
+│   ├── signing-server.ts           Bun server: signs rp_context with RP private key
+│   ├── src/main.jsx                React frontend: IDKit widget, QR code flow
+│   ├── vite.config.js              WASM-safe Vite config (excludes idkit-core from pre-bundling)
+│   └── package.json
+│
 ├── src/                            Smart Contracts
 │   ├── PolicyRegistry.sol          Stores policies & verdicts. Authority layer.
-│   ├── ClaimRequest.sol            Stateless event emitter. Privacy layer.
+│   ├── ClaimRequest.sol            Stateless event emitter. Privacy layer. (bytes payload)
 │   └── ClaimSettlement.sol         USDC pool. Payout executor.
 │
 ├── test/                           Foundry Tests (34 total)
@@ -574,27 +658,27 @@ claimshield/
 │
 ├── script/                         Foundry Scripts
 │   ├── Deploy.s.sol                Deploys all 3 contracts
-│   └── Seed.s.sol                  Registers DEMO-001 policy, funds USDC pool
+│   └── Seed.s.sol                  Registers DEMO-001 through DEMO-005, funds USDC pool
 │
 ├── workflow/                       CRE Workflow (Production)
-│   ├── main.ts                     EVM Log Trigger + ConfidentialHTTPClient
+│   ├── main.ts                     EVM Log Trigger → decrypt → World ID → FHIR → verdict
 │   ├── workflow.yaml               Staging / production targets
-│   └── config.staging.json         Contract addresses (fill after deploy)
+│   └── config.staging.json         Contract addresses + worldIdAppId/worldIdAction
 │
 ├── enclave/                        Enclave Logic (runs in both CRE TEE & local sim)
 │   ├── types.ts                    TypeScript types (ClaimPayload, Verdict, etc.)
-│   ├── processor.ts                Local simulation orchestrator (ethers.js)
+│   ├── crypto.ts                   encryptPayload / decryptPayload (XOR cipher)
+│   ├── processor.ts                Local simulation: World ID verify + FHIR + verdict
 │   ├── fetchers/fhir.ts            Fetches live FHIR record
 │   └── eligibility/medical.ts      ICD-10 eligibility + payout calculation
 │
 ├── scripts/                        Terminal Demo Scripts
-│   ├── submit-claim.ts             Submit claim hash onchain
+│   ├── demo.ts                     Full interactive demo (all phases)
+│   ├── submit-claim.ts             Submit encrypted claim onchain (standalone)
 │   ├── run-enclave.ts              Simulate enclave locally (shows private data)
 │   └── check-verdict.ts            Read verdict + print privacy panel
 │
-├── docs/
-│   └── ARCHITECTURE.md             Full 900-line technical deep-dive
-│
+├── world-id-proof.example.json     Proof shape reference (do not commit real proofs)
 ├── secrets.yaml                    Vault DON secrets config
 ├── project.yaml                    CRE project settings
 ├── .env.example                    All required env vars documented
@@ -610,8 +694,8 @@ claimshield/
 ### Prerequisites
 
 - [Foundry](https://getfoundry.sh/) — `forge`, `cast`
-- Node.js ≥ 18 with `npm` and `ts-node`
-- A [Tenderly](https://dashboard.tenderly.co/) account with a **Virtual Testnet forking mainnet**
+- [Bun](https://bun.sh/) — `bun`
+- A [Tenderly](https://dashboard.tenderly.co/) account with a **Virtual Testnet forking Base mainnet**
 - Two wallets: **deployer** (needs ETH + USDC on the virtual testnet) and **enclave signer** (needs ETH only)
 
 ---
@@ -620,7 +704,7 @@ claimshield/
 
 ```bash
 # Install TypeScript dependencies
-npm install
+bun install
 
 # Copy environment template
 cp .env.example .env
@@ -638,8 +722,59 @@ Fill in `.env`:
 
 Fund wallets via the Tenderly dashboard:
 
-- Deployer: ETH (gas) + USDC at `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`
+- Deployer: ETH (gas) + USDC at `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (Base USDC)
 - Enclave signer: ETH (gas only)
+
+---
+
+### Step 0b — Set Up World ID (required before submitting claims)
+
+ClaimShield verifies claimant identity via World ID **inside the TEE** — not client-side, not in the smart contract. The ZK proof travels encrypted onchain and is only decrypted and verified by the enclave via `ConfidentialHTTPClient`. This ensures no bot or attacker can bypass it by calling `submitClaim()` directly.
+
+**One-time setup:**
+
+1. Go to [https://developer.worldcoin.org/](https://developer.worldcoin.org/) and create a new app.
+2. Set the environment to **Staging**.
+3. Create an **Action** named exactly: `submit-claim`
+4. Under **Relying Party**, copy your `rp_id` and generate a signing key.
+5. Fill in `.env`:
+
+   ```bash
+   WORLD_ID_APP_ID=app_staging_xxxxxxxxxxxxxxxx
+   WORLD_ID_ACTION=submit-claim
+   RP_ID=rp_xxxxxxxxxxxxxxxx
+   RP_SIGNING_KEY=0x...   # 32-byte hex from Developer Portal
+   ```
+
+**Before each demo run — generate a fresh World ID proof:**
+
+World ID proofs are single-use. Generate one before each demo:
+
+```bash
+# Terminal 1 — start the RP signing server (signs rp_context for IDKit v4)
+bun --env-file .env worldid-gen/signing-server.ts
+
+# Terminal 2 — start the proof generator UI
+cd worldid-gen && bun run dev
+```
+
+Then open `http://localhost:4567` in your browser:
+
+1. Click **"Verify with World ID Simulator"** — a QR code appears
+2. Open the [World ID Simulator](https://simulator.worldcoin.org/), scan the QR
+3. Click Approve in the simulator
+4. The proof JSON appears in the browser — copy it and save to `claimshield/world-id-proof.json`:
+
+   ```json
+   {
+     "merkle_root": "0x...",
+     "nullifier_hash": "0x...",
+     "proof": "0x...",
+     "verification_level": "orb"
+   }
+   ```
+
+> The `world-id-proof.json` file is gitignored — never commit it. See `world-id-proof.example.json` for the shape.
 
 ---
 
@@ -651,19 +786,12 @@ forge script script/Deploy.s.sol \
   --broadcast -vvv
 ```
 
-Copy the three deployed addresses into `.env` and `workflow/config.staging.json`:
+Copy the three deployed addresses into `.env` **and** `workflow/config.staging.json`.
 
-```
-POLICY_REGISTRY_ADDRESS=0x...
-CLAIM_REQUEST_ADDRESS=0x...
-CLAIM_SETTLEMENT_ADDRESS=0x...
-```
-
-Also update `workflow/config.staging.json`:
-
-- `demoPolicyId` → run `cast keccak "DEMO-001"` to get the bytes32
-- `demoClaimant` → your claimant wallet address
-- `claimSubmittedEventSignature` → `cast keccak "ClaimSubmitted(bytes32,address,bytes32,uint256)"`
+> **Note:** Verify the addresses are correct by checking bytecode sizes:
+> - ClaimRequest should be ~526 bytes (smallest — only one function)
+> - PolicyRegistry ~4333 bytes
+> - ClaimSettlement ~2449 bytes
 
 ---
 
@@ -675,9 +803,24 @@ forge script script/Seed.s.sol \
   --broadcast -vvv
 ```
 
-This registers policy **DEMO-001** with coverage 2024-01-01 to 2024-12-31, activates it by paying the premium, and deposits $10,000 USDC into the settlement pool.
+This registers policies **DEMO-001** through **DEMO-005** (each claimable once) and deposits $10,000 USDC into the settlement pool.
 
-The demo FHIR claim (treatment date `2024-06-10`) falls perfectly within this window.
+If Seed fails mid-run because policies already exist, fund the pool manually:
+
+```bash
+# Set $10,000 USDC balance via Tenderly admin RPC
+curl -X POST $TENDERLY_RPC_URL -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tenderly_setErc20Balance","params":["0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913","<DEPLOYER_ADDR>","0x2540BE400"],"id":1}'
+
+# Approve + deposit
+cast send 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
+  "approve(address,uint256)" $CLAIM_SETTLEMENT_ADDRESS 10000000000 \
+  --private-key $DEPLOYER_PRIVATE_KEY --rpc-url $TENDERLY_RPC_URL
+
+cast send $CLAIM_SETTLEMENT_ADDRESS \
+  "depositLiquidity(uint256)" 10000000000 \
+  --private-key $DEPLOYER_PRIVATE_KEY --rpc-url $TENDERLY_RPC_URL
+```
 
 ---
 
@@ -700,85 +843,45 @@ Look for:
 
 ---
 
-### Step 4 — Submit the Claim
+### Step 4 — Run the Interactive Demo
 
 ```bash
-ts-node scripts/submit-claim.ts --policy DEMO-001 --fhir 131299879
+bun scripts/demo.ts
 ```
 
-The script prints exactly what IS and IS NOT in the transaction. Open the Tenderly link it prints. Inspect every internal call, every event log, every storage slot — you will find **zero medical data** anywhere.
+The demo runs four phases automatically:
+
+```
+Phase 1 — FHIR Preview
+  Fetches live medical record. Shows what the enclave will see.
+  None of this appears onchain.
+
+Phase 2 — Submit Claim Onchain
+  Bundles FHIR ID + World ID proof into a single encrypted payload.
+  Submits as opaque bytes. Only the enclave can decrypt.
+
+Phase 3 — Enclave Processing (Simulated CRE TEE)
+  [TEE] Step 0: Decrypts the bundle from the onchain event
+  [TEE] Step 1: Calls World ID Cloud API — shows real API request + response
+        → POST https://developer.worldcoin.org/api/v1/verify/app_...
+        ← { success: true, uses: 1, ... }
+  [TEE] Step 2: Fetches live FHIR record via ConfidentialHTTPClient
+  [TEE] Step 3: Runs eligibility — ICD-10, date, payout
+  [TEE] Step 4: Writes verdict + executes payout
+
+Phase 4 — Verdict
+  Reads verdict from chain.
+  Shows what IS onchain vs what NEVER left the enclave.
+```
+
+> Each policy (DEMO-001 through DEMO-005) can only be claimed once. After DEMO-001, use DEMO-002 for the next run.
 
 ---
 
-### Step 5 — Run the Enclave (local simulation)
+### Step 5 — Verify the USDC Payout
 
 ```bash
-ts-node scripts/run-enclave.ts --policy DEMO-001 --fhir 131299879
-```
-
-This runs the enclave logic locally so you can observe the private data in your terminal. In production CRE, these logs stay inside the TEE and are never externally accessible.
-
-You will see:
-
-```
-[ENCLAVE] Verifying policy DEMO-001...
-[ENCLAVE] Policy active. Claimant eligible.
-[ENCLAVE] Fetching FHIR 131299879 from HAPI sandbox...
-[ENCLAVE] ┌─ ICD-10  : J06.9   ← [PRIVATE — stays in enclave in production]
-[ENCLAVE] │  Date    : 2024-06-10
-[ENCLAVE] └─ Billed  : $150.00
-[ENCLAVE] ICD-10 J06.9 covered? YES
-[ENCLAVE] Date in 2024 period?  YES
-[ENCLAVE] Payout: $150 × 80% = $120.00 USDC
-[ENCLAVE] Writing verdict to PolicyRegistry...
-[ENCLAVE] Executing USDC payout...
-[ENCLAVE] ✓ $120.00 transferred. TX: 0x...
-```
-
----
-
-### Step 6 — Read the Verdict
-
-```bash
-ts-node scripts/check-verdict.ts --policy DEMO-001
-```
-
-Prints the full privacy panel:
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  CLAIMSHIELD VERDICT — Policy: DEMO-001
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Status          : ✅ APPROVED
-  Payout          : $120.00 USDC
-  Reason Code     : 0 — APPROVED
-  Compliance Hash : 0x...
-
-  ── WHAT IS ONCHAIN (anyone can verify): ──────────────────
-    ✅ Policy exists and was active
-    ✅ Verdict: APPROVED
-    ✅ Payout: $120.00 USDC
-    ✅ Compliance hash (non-reversible proof)
-    ✅ Written by approved enclave address
-
-  ── WHAT NEVER LEFT THE ENCLAVE: ─────────────────────────
-    🔒 FHIR Claim ID     → 131299879
-    🔒 ICD-10 Code       → J06.9
-    🔒 Diagnosis Text    → Acute upper respiratory infection
-    🔒 Treatment Date    → 2024-06-10
-    🔒 Billed Amount     → $150.00
-    🔒 Reimbursement Rate → 80%
-    🔒 Covered Conditions List
-    🔒 EHR API Credentials
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
----
-
-### Step 7 — Verify the USDC Payout
-
-```bash
-cast call 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 \
+cast call 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
   "balanceOf(address)(uint256)" $CLAIMANT_WALLET \
   --rpc-url $TENDERLY_RPC_URL
 # Expected: 120000000  (= $120.00 USDC)
@@ -793,7 +896,7 @@ cast call 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 \
 forge test -vv
 
 # TypeScript compilation check
-npx tsc --noEmit
+bunx tsc --noEmit
 
 # CRE workflow simulation (requires CRE CLI)
 cre workflow simulate ./workflow --target=staging-settings
@@ -805,7 +908,7 @@ cre workflow simulate ./workflow --target=staging-settings
 
 | Field | Value |
 |---|---|
-| **Policy ID** | `DEMO-001` → `keccak256("DEMO-001")` |
+| **Policy IDs** | `DEMO-001` through `DEMO-005` (use sequentially — one claim each) |
 | **Coverage Period** | 2024-01-01 to 2024-12-31 |
 | **FHIR Claim ID** | `131299879` |
 | **FHIR Sandbox URL** | `https://hapi.fhir.org/baseR4/Claim/131299879` |
@@ -814,8 +917,22 @@ cre workflow simulate ./workflow --target=staging-settings
 | **Billed Amount** | `$150.00 USD` |
 | **Reimbursement Rate** | `80%` (private — computed inside TEE) |
 | **Expected Payout** | `$120.00 USDC` = `120_000000` (6 decimals) |
-| **USDC Contract (mainnet)** | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
+| **World ID Action** | `submit-claim` (must match Developer Portal exactly) |
+| **World ID API** | `https://developer.worldcoin.org/api/v1/verify/{appId}` |
+| **USDC Contract (Base)** | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 
 ---
 
-*For the full 900-line technical deep-dive including detailed sequence diagrams, per-function call traces, and the complete privacy threat model, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).*
+### What's Real vs. Simulated
+
+| Component | Demo | Production CRE |
+|---|---|---|
+| World ID proof generation | Real World ID Simulator + real ZK proof | Same |
+| World ID verification | Real Cloud API call via `fetch()` (simulation) | `ConfidentialHTTPClient` inside TEE |
+| FHIR data | Real live HAPI FHIR sandbox | Same (production EHR with Vault DON auth) |
+| Encryption | XOR cipher with shared secret | Asymmetric encryption to DON public key |
+| Enclave execution | Local Node.js with visible logs | Hardware TEE — logs stay inside enclave |
+| Onchain writes | Real ethers.js wallet (`ENCLAVE_PRIVATE_KEY`) | DON consensus key |
+| Smart contracts | Real Solidity on Tenderly Virtual Testnet | Same contracts on target chain |
+
+*For the full technical deep-dive including detailed sequence diagrams, per-function call traces, and the complete privacy threat model, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).*
