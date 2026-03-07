@@ -46,7 +46,7 @@ const configSchema = z.object({
     claimSubmittedEventSignature: z.string(),
     worldIdAppId: z.string(),
     worldIdAction: z.string(),
-    worldIdBaseUrl: z.string().default('https://developer.worldcoin.org'),
+    worldIdBaseUrl: z.string(),
     owner: z.string(),
 })
 
@@ -211,10 +211,7 @@ const onClaimSubmitted = (
     const bundleJson = decryptPayload(encryptedPayloadHex, config.enclaveSharedSecret)
     const bundle = JSON.parse(bundleJson) as {
         fhirId: string
-        nullifier_hash: string
-        merkle_root: string
-        proof: string
-        verification_level: string
+        idkitProof: Record<string, any>
     }
 
     runtime.log('[CRE ENCLAVE] ClaimSubmitted event received')
@@ -227,18 +224,13 @@ const onClaimSubmitted = (
     // ── Step 1: Verify World ID proof via Confidential HTTP (INSIDE TEE) ──────
     runtime.log('[CRE ENCLAVE] Step 1: Verifying World ID proof via ConfidentialHTTPClient...')
 
-    const worldIdBody = JSON.stringify({
-        nullifier_hash: bundle.nullifier_hash,
-        merkle_root: bundle.merkle_root,
-        proof: bundle.proof,
-        verification_level: bundle.verification_level,
-        action: config.worldIdAction,
-        signal: '',
-    })
+    // The IDKit v3 payload already contains action, environment, nonce, protocol_version, and responses.
+    // We forward it exactly as-is to the V4 API — no field remapping needed.
+    const worldIdBody = JSON.stringify(bundle.idkitProof)
 
     const worldIdResp = confHTTP.sendRequest(runtime, {
         request: {
-            url: `${config.worldIdBaseUrl}/api/v1/verify/${config.worldIdAppId}`,
+            url: `${config.worldIdBaseUrl}/api/v4/verify/${config.worldIdAppId}`,
             method: 'POST',
             bodyString: worldIdBody,
             multiHeaders: {

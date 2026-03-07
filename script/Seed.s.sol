@@ -39,46 +39,103 @@ contract Seed is Script {
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address registryAddr = vm.envAddress("POLICY_REGISTRY_ADDRESS");
-        address settlementAddr = vm.envAddress("CLAIM_SETTLEMENT_ADDRESS");
         address enclaveWallet = vm.envAddress("ENCLAVE_WALLET_ADDRESS");
 
         vm.startBroadcast(deployerKey);
 
         PolicyRegistry registry = PolicyRegistry(registryAddr);
-        ClaimSettlement settlement = ClaimSettlement(settlementAddr);
-        IERC20 usdc = IERC20(USDC);
 
-        // Register DEMO-001 through DEMO-005
-        // All share the same coverage period (all of 2024) and enclave.
-        // Each can only be claimed once — cycle through them for repeated demos.
-        registerAndActivate(registry, keccak256(abi.encodePacked("DEMO-001")), enclaveWallet);
-        registerAndActivate(registry, keccak256(abi.encodePacked("DEMO-002")), enclaveWallet);
-        registerAndActivate(registry, keccak256(abi.encodePacked("DEMO-003")), enclaveWallet);
-        registerAndActivate(registry, keccak256(abi.encodePacked("DEMO-004")), enclaveWallet);
-        registerAndActivate(registry, keccak256(abi.encodePacked("DEMO-005")), enclaveWallet);
-
-        // Fund settlement pool with $10,000 USDC
-        uint256 poolAmount = 10_000_000000;
-        usdc.approve(settlementAddr, poolAmount);
-        settlement.depositLiquidity(poolAmount);
+        // Register DEMO-016 through DEMO-030
+        // Extend the batch — pool is already funded from first seed run.
+        registerAndActivate(
+            registry,
+            keccak256(abi.encodePacked("DEMO-016")),
+            enclaveWallet
+        );
+        registerAndActivate(
+            registry,
+            keccak256(abi.encodePacked("DEMO-017")),
+            enclaveWallet
+        );
+        registerAndActivate(
+            registry,
+            keccak256(abi.encodePacked("DEMO-018")),
+            enclaveWallet
+        );
+        registerAndActivate(
+            registry,
+            keccak256(abi.encodePacked("DEMO-019")),
+            enclaveWallet
+        );
+        registerAndActivate(
+            registry,
+            keccak256(abi.encodePacked("DEMO-020")),
+            enclaveWallet
+        );
+        registerAndActivate(
+            registry,
+            keccak256(abi.encodePacked("DEMO-021")),
+            enclaveWallet
+        );
+        registerAndActivate(
+            registry,
+            keccak256(abi.encodePacked("DEMO-022")),
+            enclaveWallet
+        );
+        registerAndActivate(
+            registry,
+            keccak256(abi.encodePacked("DEMO-023")),
+            enclaveWallet
+        );
+        registerAndActivate(
+            registry,
+            keccak256(abi.encodePacked("DEMO-024")),
+            enclaveWallet
+        );
+        registerAndActivate(
+            registry,
+            keccak256(abi.encodePacked("DEMO-025")),
+            enclaveWallet
+        );
+        registerAndActivate(
+            registry,
+            keccak256(abi.encodePacked("DEMO-026")),
+            enclaveWallet
+        );
+        registerAndActivate(
+            registry,
+            keccak256(abi.encodePacked("DEMO-027")),
+            enclaveWallet
+        );
+        registerAndActivate(
+            registry,
+            keccak256(abi.encodePacked("DEMO-028")),
+            enclaveWallet
+        );
+        registerAndActivate(
+            registry,
+            keccak256(abi.encodePacked("DEMO-029")),
+            enclaveWallet
+        );
+        registerAndActivate(
+            registry,
+            keccak256(abi.encodePacked("DEMO-030")),
+            enclaveWallet
+        );
 
         vm.stopBroadcast();
 
         console.log("=======================================================");
         console.log("  SEED COMPLETE");
         console.log("=======================================================");
-        console.log("  Policies registered: DEMO-001 through DEMO-005");
+        console.log("  Policies registered: DEMO-013 through DEMO-030");
         console.log("  Coverage           : 2024-01-01 to 2024-12-31");
         console.log("  Max payout         : $500.00 USDC per policy");
         console.log("  Approved enclave   :", enclaveWallet);
-        console.log("  Pool funded        : $10,000 USDC");
         console.log("=======================================================");
         console.log("  FHIR Claim ID      : 131299879");
         console.log("  Expected ICD-10    : J06.9 (covered)");
         console.log("  Expected payout    : $120.00 USDC (80% of $150)");
-        console.log("-------------------------------------------------------");
-        console.log("  TIP: Each policy can only be claimed once.");
-        console.log("  Use DEMO-001, then DEMO-002, etc. for repeated demos.");
         console.log("=======================================================");
     }
 }

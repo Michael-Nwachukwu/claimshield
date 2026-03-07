@@ -50,12 +50,7 @@ const TENDERLY_RPC_URL = process.env.TENDERLY_RPC_URL!
  * World ID proof fields — bundled inside the encrypted payload onchain.
  * The enclave decrypts these and verifies them via World ID Cloud API.
  */
-export type WorldIdProof = {
-    nullifier_hash: string
-    merkle_root: string
-    proof: string
-    verification_level: string
-}
+export type WorldIdProof = Record<string, any>
 
 /**
  * Main entry point for local simulation.
@@ -94,29 +89,18 @@ export async function processClaim(payload: ClaimPayload, worldId?: WorldIdProof
         console.log('\n[ENCLAVE] Step 0: Verifying World ID proof via Cloud API...')
         console.log('[ENCLAVE] Simulation: fetch() | Production: ConfidentialHTTPClient (inside TEE)')
         console.log('[ENCLAVE] ──────────────────────────────────────────────────────')
-        console.log(`[ENCLAVE]   → POST https://developer.worldcoin.org/api/v1/verify/${appId}`)
-        console.log('[ENCLAVE]   → Request body:')
-        console.log(`[ENCLAVE]       nullifier_hash     : ${worldId.nullifier_hash}`)
-        console.log(`[ENCLAVE]       merkle_root        : ${worldId.merkle_root}`)
-        console.log(`[ENCLAVE]       proof              : ${worldId.proof.slice(0, 40)}... [ZKP — truncated for display]`)
-        console.log(`[ENCLAVE]       verification_level : ${worldId.verification_level}`)
-        console.log(`[ENCLAVE]       action             : ${action}`)
-        console.log('[ENCLAVE]       signal             : (empty — no signal required)')
+        console.log(`[ENCLAVE]   → POST https://developer.worldcoin.org/api/v4/verify/${appId}`)
+        console.log(`[ENCLAVE]   → Request body:`)
+        console.log(`[ENCLAVE]       (Raw IDKit payload passed to V4 API)`)
         console.log('[ENCLAVE]   Sending request to World ID Cloud API...')
 
         let worldIdVerified = false
         try {
-            const resp = await fetch(`https://developer.worldcoin.org/api/v1/verify/${appId}`, {
+            const resp = await fetch(`https://developer.worldcoin.org/api/v4/verify/${appId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    nullifier_hash: worldId.nullifier_hash,
-                    merkle_root: worldId.merkle_root,
-                    proof: worldId.proof,
-                    verification_level: worldId.verification_level,
-                    action,
-                    signal: '',
-                }),
+                // IDKit v3 payload already has action/environment/responses embedded — forward as-is
+                body: JSON.stringify(worldId),
             })
 
             const result = await resp.json() as Record<string, unknown>

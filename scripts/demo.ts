@@ -295,13 +295,10 @@ async function main() {
     console.log(`  ${green('OK')} World ID proof loaded`)
     console.log(`  ${dim('Verification happens inside the CRE TEE — not client-side.')}`)
 
-    // Bundle and encrypt
+    // Bundle: FHIR ID + full raw IDKit v3 proof (responses-array format for V4 API)
     const bundle = JSON.stringify({
         fhirId: fhirClaimId,
-        nullifier_hash: worldIdProof.nullifier_hash,
-        merkle_root: worldIdProof.merkle_root,
-        proof: worldIdProof.proof,
-        verification_level: worldIdProof.verification_level,
+        idkitProof: worldIdProof,
     })
     const encryptedPayload = encryptPayload(bundle, sharedSecret)
     const payloadBytes = (encryptedPayload.length - 2) / 2
@@ -449,7 +446,10 @@ async function main() {
     const decryptedBundle = JSON.parse(decryptPayload(encryptedPayload, sharedSecret))
 
     console.log(`\n  ${bold(magenta('WHAT NEVER LEFT THE CRE TEE:'))}`)
-    console.log(`    ${magenta('LOCKED')} World ID nullifier     ${dim(decryptedBundle.nullifier_hash)}`)
+    const nullifier = decryptedBundle.idkitProof?.responses?.[0]?.nullifier
+        ?? decryptedBundle.idkitProof?.nullifier_hash
+        ?? '(inside proof)'
+    console.log(`    ${magenta('LOCKED')} World ID nullifier     ${dim(nullifier)}`)
     console.log(`    ${magenta('LOCKED')} World ID proof         ${dim('[ZKP — verified inside TEE]')}`)
     console.log(`    ${magenta('LOCKED')} FHIR Claim ID         ${yellow(decryptedBundle.fhirId)}`)
     console.log(`    ${magenta('LOCKED')} ICD-10 Diagnosis Code  ${dim('(evaluated inside TEE)')}`)

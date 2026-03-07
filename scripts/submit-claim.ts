@@ -70,7 +70,8 @@ async function main() {
         process.exit(1)
     }
     const worldIdProof = JSON.parse(fs.readFileSync(proofPath, 'utf-8'))
-    console.log(`  [World ID] Nullifier : ${worldIdProof.nullifier_hash}`)
+    const nullifier = worldIdProof.nullifier_hash ?? (worldIdProof.responses ? worldIdProof.responses[0]?.nullifier : 'unknown')
+    console.log(`  [World ID] Nullifier : ${nullifier}`)
     console.log(`  [World ID] Proof will be verified inside the TEE — not client-side.`)
 
     // ── Step 2: Encrypt the bundle ────────────────────────────────────────────
@@ -79,10 +80,7 @@ async function main() {
     console.log('\n  [Step 2/3] Building and encrypting payload bundle...')
     const bundle = JSON.stringify({
         fhirId: args.fhir,
-        nullifier_hash: worldIdProof.nullifier_hash,
-        merkle_root: worldIdProof.merkle_root,
-        proof: worldIdProof.proof,
-        verification_level: worldIdProof.verification_level,
+        idkitProof: worldIdProof,
     })
     const encryptedPayloadHex = encryptPayload(bundle, process.env.ENCLAVE_SHARED_SECRET!)
     const policyIdBytes = ethers.id(args.policy)

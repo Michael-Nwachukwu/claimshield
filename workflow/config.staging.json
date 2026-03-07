@@ -7,6 +7,6 @@
     "claimSubmittedEventSignature": "0x98b0517d6690a4094b2f2705a21ab8ecfae6863f6a5537402590b3dc3b4a78e3",
     "worldIdAppId": "app_d2d6e31b837c0b48bd8d9093f3b8f300",
     "worldIdAction": "submit-claim",
-    "worldIdBaseUrl": "https://staging-developer.worldcoin.org",
+    "worldIdBaseUrl": "https://developer.worldcoin.org",
     "owner": "0x7FBbE68068A3Aa7E479A1E51e792F4C2073b018f"
 }

@@ -14109,7 +14109,7 @@ var configSchema = exports_external.object({
   claimSubmittedEventSignature: exports_external.string(),
   worldIdAppId: exports_external.string(),
   worldIdAction: exports_external.string(),
-  worldIdBaseUrl: exports_external.string().default("https://developer.worldcoin.org"),
+  worldIdBaseUrl: exports_external.string(),
   owner: exports_external.string()
 });
 var HEX = "0123456789abcdef";
@@ -14220,17 +14220,10 @@ var onClaimSubmitted = (runtime2, log) => {
   runtime2.log("[CRE ENCLAVE] World ID proof: [PRIVATE — verified inside TEE, never logged]");
   const confHTTP = new ClientCapability2;
   runtime2.log("[CRE ENCLAVE] Step 1: Verifying World ID proof via ConfidentialHTTPClient...");
-  const worldIdBody = JSON.stringify({
-    nullifier_hash: bundle.nullifier_hash,
-    merkle_root: bundle.merkle_root,
-    proof: bundle.proof,
-    verification_level: bundle.verification_level,
-    action: config.worldIdAction,
-    signal: ""
-  });
+  const worldIdBody = JSON.stringify(bundle.idkitProof);
   const worldIdResp = confHTTP.sendRequest(runtime2, {
     request: {
-      url: `${config.worldIdBaseUrl}/api/v1/verify/${config.worldIdAppId}`,
+      url: `${config.worldIdBaseUrl}/api/v4/verify/${config.worldIdAppId}`,
       method: "POST",
       bodyString: worldIdBody,
       multiHeaders: {
@@ -14240,7 +14233,8 @@ var onClaimSubmitted = (runtime2, log) => {
     vaultDonSecrets: []
   }).result();
   if (!ok(worldIdResp)) {
-    runtime2.log("[CRE ENCLAVE] World ID verification FAILED — claim denied");
+    const errBody = worldIdResp?.body ? utf8Decode(worldIdResp.body) : "";
+    runtime2.log(`[CRE ENCLAVE] World ID HTTP error — body: ${errBody.slice(0, 200)}`);
     return {
       policyId: policyIdHex,
       claimant,
@@ -14250,9 +14244,11 @@ var onClaimSubmitted = (runtime2, log) => {
       complianceHash: "0x" + "0".repeat(64)
     };
   }
-  const worldIdParsed = JSON.parse(utf8Decode(worldIdResp.body));
+  const worldIdRespBody = utf8Decode(worldIdResp.body);
+  runtime2.log(`[CRE ENCLAVE] World ID raw response: ${worldIdRespBody.slice(0, 300)}`);
+  const worldIdParsed = JSON.parse(worldIdRespBody);
   if (!worldIdParsed.success) {
-    runtime2.log("[CRE ENCLAVE] World ID verification FAILED — claim denied");
+    runtime2.log(`[CRE ENCLAVE] World ID FAILED — code: ${worldIdParsed.code ?? "N/A"} detail: ${worldIdParsed.detail ?? "N/A"}`);
     return {
       policyId: policyIdHex,
       claimant,

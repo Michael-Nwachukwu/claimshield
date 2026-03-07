@@ -160,12 +160,9 @@
       }
 
       const handleSuccess = (result) => {
-        setProof({
-          merkle_root: result.merkle_root,
-          nullifier_hash: result.nullifier_hash,
-          proof: result.proof,
-          verification_level: result.verification_level,
-        })
+        // Save the FULL raw IDKit result — the V4 World ID API needs the
+        // "responses" array format, not the old flat nullifier_hash/merkle_root fields.
+        setProof(result)
       }
 
       const handleError = (e) => {
@@ -196,6 +193,8 @@
                 verification_level={VerificationLevel.Device}
                 onSuccess={handleSuccess}
                 onError={handleError}
+                env="staging"
+                environment="staging"
               >
                 {({ open }) => (
                   <button className="btn" onClick={open}>

@@ -28,12 +28,7 @@
 import fs from 'fs'
 import path from 'path'
 
-export interface WorldIDProof {
-    merkle_root: string
-    nullifier_hash: string
-    proof: string
-    verification_level: 'orb' | 'device'
-}
+export type WorldIDProof = Record<string, any>
 
 interface WorldIDVerifyResponse {
     success: boolean
@@ -44,6 +39,8 @@ interface WorldIDVerifyResponse {
     code?: string
     detail?: string
     attribute?: string
+    nullifier?: string
+    results?: any[]
 }
 
 /**
@@ -88,15 +85,12 @@ export async function verifyWorldIDProof(proof: WorldIDProof): Promise<string> {
         )
     }
 
-    const url = `https://developer.worldcoin.org/api/v1/verify/${appId}`
+    const url = `https://developer.worldcoin.org/api/v4/verify/${appId}`
 
     const body = {
-        nullifier_hash: proof.nullifier_hash,
-        merkle_root: proof.merkle_root,
-        proof: proof.proof,
-        verification_level: proof.verification_level,
+        ...proof,
         action: action,
-        signal: '',
+        signal: '', // Signal is optional and can be an empty string if not used.
     }
 
     console.log(`\n  [World ID] Sending proof to World ID Cloud API...`)
@@ -122,7 +116,7 @@ export async function verifyWorldIDProof(proof: WorldIDProof): Promise<string> {
         )
     }
 
-    return json.nullifier_hash ?? proof.nullifier_hash
+    return json.nullifier ?? (json.results && json.results.length > 0 ? json.results[0].nullifier : 'unknown')
 }
 
 /**
