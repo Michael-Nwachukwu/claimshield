@@ -48,9 +48,11 @@ TRADITIONAL SYSTEM — The Privacy Problem
   audit trail to verify how claims or settlements are handled.
 ```
 
-**The core tension:** To get paid, the patient must reveal private health data. And to submit a claim, *anyone* with a wallet can call the contract — nothing stops a bot from spamming claims under stolen policy IDs.
+**The core tension:** To get paid, the patient must reveal private health data. There is currently no way to prove eligibility *without* exposure.
 
-ClaimShield solves both: privacy via TEE processing, and Sybil resistance via World ID.
+Solving this problem is ClaimShield — a privacy-preserving insurance claims processor that verifies eligibility against live electronic health records (EHR) *without* exposing the underlying medical data. It shifts the paradigm from "share data to prove eligibility" to "run trusted code to prove eligibility," ensuring the insurer process claims trustlessly while keeping patient records strictly confidential.
+
+Here's how it works: A patient receives medical treatment and their healthcare provider logs the details in an Electronic Health Record (EHR) system, generating a unique FHIR claim ID. The patient comes to ClaimShield and submits a claim by providing their policy ID and the FHIR claim ID. A unique hash of this information is sent on-chain, triggering the ClaimShield enclave. The enclave securely connects to the live EHR system, retrieves the patient's medical data, and evaluates it against the policy's covered conditions and limits. Once verified, the enclave securely records an "Approved" or "Denied" verdict on-chain and triggers an automatic USDC payout to the patient's wallet, all without ever exposing the sensitive medical diagnosis.
 
 ---
 
@@ -120,6 +122,16 @@ CRE adds three capabilities on top of a basic TEE:
 | **ConfidentialHTTPClient** | HTTPS requests execute *inside* the TEE — both the World ID verification and FHIR fetch happen here. Responses are decrypted only inside the enclave. Nothing is visible to external observers, including the node operator. |
 | **Vault DON Secrets** | API credentials (e.g., EHR OAuth2 tokens) are stored encrypted in the Vault DON and injected at request time via `{{.secret}}` template syntax. They never appear in code, logs, or process memory. |
 | **EVM Log Trigger** | The workflow fires *automatically and instantly* when a `ClaimSubmitted` event is emitted on-chain — no polling, no cron, no manual intervention. |
+
+---
+
+## CRE Workflow File Structure & Scripts
+
+Links directly to the Chainlink CRE integration files in our repository:
+
+- 🧠 **[workflow/main.ts](https://github.com/Michael-Nwachukwu/claimshield/blob/main/workflow/main.ts)** — The core computation running *inside* the TEE. This script is compiled to WASM. It decrypts the payload, fetches World ID and FHIR data via Confidential HTTP, runs the eligibility logic, and returns the verdict.
+- ⚙️ **[workflow/workflow.yaml](https://github.com/Michael-Nwachukwu/claimshield/blob/main/workflow/workflow.yaml)** (and `cre-settings.json`) — The CRE configuration defining the EVM log trigger, network settings, and injected secrets.
+- 🚀 **[scripts/demo.ts](https://github.com/Michael-Nwachukwu/claimshield/blob/main/scripts/demo.ts)** — The interactive wrapper script. It simulates the frontend sending the transaction onchain, triggers the CRE simulator via child process, parses the output, and writes the final verdict back onchain.
 
 ---
 
@@ -789,6 +801,7 @@ forge script script/Deploy.s.sol \
 Copy the three deployed addresses into `.env` **and** `workflow/config.staging.json`.
 
 > **Note:** Verify the addresses are correct by checking bytecode sizes:
+>
 > - ClaimRequest should be ~526 bytes (smallest — only one function)
 > - PolicyRegistry ~4333 bytes
 > - ClaimSettlement ~2449 bytes
